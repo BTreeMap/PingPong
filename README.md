@@ -31,13 +31,16 @@ Once the run is complete, PingPong writes all raw timestamps to a CSV file and t
    - A CDF plot drawn by `scripts/plot_cdf.py` (Python)  
    - A summary report with percentile values for each latency component  
 
-## Usage
+## Building and Running
 
 ```bash
-# On the server:
+cd src
+make
+
+# On server
 sudo ./pingpong-server --port 12345
 
-# On the client:
+# On client
 sudo ./pingpong-client \
   --addr 192.0.2.10 \
   --port 12345 \
@@ -45,11 +48,11 @@ sudo ./pingpong-client \
   --count 10000 \
   --output results.csv
 
-# After the run, draw the CDF in Python:
+# Plot CDF
 python3 scripts/plot_cdf.py \
   --input results.csv \
   --output latency_cdf.png
-````
+```
 
 ## Dependencies
 
