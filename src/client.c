@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <getopt.h>
 
 // send_all ensures all data is sent
 int send_all(int sockfd, const void *buf, size_t len)
@@ -54,37 +55,44 @@ int main(int argc, char *argv[])
     int count = 0;
     char *output = NULL;
 
-    for (int i = 1; i < argc; i++)
+    static struct option long_options[] = {
+        {"addr", required_argument, 0, 'a'},
+        {"port", required_argument, 0, 'p'},
+        {"size", required_argument, 0, 's'},
+        {"count", required_argument, 0, 'c'},
+        {"output", required_argument, 0, 'o'},
+        {0, 0, 0, 0}};
+
+    int opt;
+    int option_index = 0;
+    while ((opt = getopt_long(argc, argv, "a:p:s:c:o:", long_options, &option_index)) != -1)
     {
-        if (strcmp(argv[i], "--addr") == 0 && i + 1 < argc)
+        switch (opt)
         {
-            addr = argv[++i];
-        }
-        else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
-        {
-            port = atoi(argv[++i]);
-        }
-        else if (strcmp(argv[i], "--size") == 0 && i + 1 < argc)
-        {
-            size = atoi(argv[++i]);
-        }
-        else if (strcmp(argv[i], "--count") == 0 && i + 1 < argc)
-        {
-            count = atoi(argv[++i]);
-        }
-        else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc)
-        {
-            output = argv[++i];
-        }
-        else
-        {
-            fprintf(stderr, "Unknown or incomplete argument: %s\n", argv[i]);
+        case 'a':
+            addr = optarg;
+            break;
+        case 'p':
+            port = atoi(optarg);
+            break;
+        case 's':
+            size = atoi(optarg);
+            break;
+        case 'c':
+            count = atoi(optarg);
+            break;
+        case 'o':
+            output = optarg;
+            break;
+        default:
+            fprintf(stderr, "Usage: %s -a <address> -p <port> -s <bytes> -c <number> -o <file>\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
+
     if (!addr || port <= 0 || size <= 0 || count <= 0 || !output)
     {
-        fprintf(stderr, "Usage: %s --addr <address> --port <port> --size <bytes> --count <number> --output <file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s -a <address> -p <port> -s <bytes> -c <number> -o <file>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
