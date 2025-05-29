@@ -1,2 +1,5 @@
 # Ignore build artifacts
 build/
+
+# Ignore vscode settings
+.vscode/
