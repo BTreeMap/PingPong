@@ -4,16 +4,25 @@ BPF_CC    := clang
 
 # Basic flags
 CFLAGS    := -O2 -Wall
-BPF_CFLAGS := -g -O2 -target bpf \
-              -I$(KERNEL_HEADERS)/include \
-              -I$(KERNEL_HEADERS)/include/uapi
-
-# Where to find the kernel headers (defaults to the running kernel)
+# BPF compile flags; includes kernel headers and BTF header
+BUILD_DIR := build
+# pick up your running‐kernel version
 HOST_KERNEL_VERSION ?= $(shell uname -r)
-KERNEL_HEADERS       ?= /lib/modules/$(HOST_KERNEL_VERSION)/build
+KERNEL_HEADERS       ?= /usr/src/linux-headers-$(HOST_KERNEL_VERSION)
+ARCH                 ?= $(shell uname -m | sed s/aarch64/arm64/)
+VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
+
+BPF_CFLAGS := -g -O2 -target bpf \
+  -nostdinc \
+  -I$(KERNEL_HEADERS)/include \
+  -I$(KERNEL_HEADERS)/include/uapi \
+  -I$(KERNEL_HEADERS)/include/generated \
+  -I$(KERNEL_HEADERS)/include/generated/uapi \
+  -I$(KERNEL_HEADERS)/arch/$(ARCH)/include \
+  -isystem /usr/include/bpf \
+  -include $(VMLINUX_HDR)
 
 # Build directories & targets
-BUILD_DIR      := build
 TARGETS        := client server
 TARGETS_BIN    := $(TARGETS:%=$(BUILD_DIR)/%)
 
@@ -25,15 +34,20 @@ BPF_OBJ_USER   := $(BUILD_DIR)/pingpong_user
 
 .PHONY: all clean
 
-all: $(TARGETS_BIN) $(BPF_OBJ_USER)
+all: $(VMLINUX_HDR) $(TARGETS_BIN) $(BPF_OBJ_USER)
 
-# Build user‐space clients
+# Extract BTF and generate vmlinux.h
+$(VMLINUX_HDR):
+	@mkdir -p $(BUILD_DIR)
+	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
+
+# Build user-space clients
 $(BUILD_DIR)/%: src/%.c
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $<
 
-# Compile the BPF .o with the proper kernel headers
-$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c
+# Compile the BPF .o with the proper kernel headers and BTF
+$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR)
 	@mkdir -p $(BUILD_DIR)
 	$(BPF_CC) $(CFLAGS) $(BPF_CFLAGS) \
 	  -c $< -o $@
