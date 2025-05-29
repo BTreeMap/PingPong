@@ -34,14 +34,13 @@ Once the run is complete, PingPong writes all raw timestamps to a CSV file and t
 ## Building and Running
 
 ```bash
-cd src
 make
 
 # On server
-sudo ./pingpong-server --port 12345
+sudo ./server --port 12345
 
 # On client
-sudo ./pingpong-client \
+sudo ./client \
   --addr 192.0.2.10 \
   --port 12345 \
   --size 1024 \
