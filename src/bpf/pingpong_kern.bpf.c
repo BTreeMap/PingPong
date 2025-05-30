@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-#include <linux/bpf.h>
+#include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
-#include <linux/types.h>
 
 // Define a structure for the data we want to send to user space
 struct event

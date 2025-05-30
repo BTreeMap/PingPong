@@ -14,8 +14,8 @@
 // Define the same event structure as in the BPF program
 struct event
 {
-    u64 timestamp_ns;
-    u32 pid;
+    __u64 timestamp_ns;
+    __u32 pid;
     u16 sport;
     u16 dport;
     // Add other fields as needed

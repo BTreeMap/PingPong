@@ -1,3 +1,6 @@
+# Load environment variables from .env file if it exists
+-include .env
+
 # Compiler toolchains
 CC        := gcc
 BPF_CC    := clang
@@ -6,20 +9,17 @@ BPF_CC    := clang
 CFLAGS    = -O2 -Wall -I$(BUILD_DIR)
 # BPF compile flags; includes kernel headers and BTF header
 BUILD_DIR := build
-ASM_HDR_DIR := $(BUILD_DIR)/include/asm
+INCLUDE_DIR := $(BUILD_DIR)/include
 # pick up your running‐kernel version
-HOST_KERNEL_VERSION ?= $(shell uname -r)
+
+HOST_KERNEL_VERSION  ?= $(shell uname -r)
 KERNEL_HEADERS       ?= /usr/src/linux-headers-$(HOST_KERNEL_VERSION)
 ARCH                 ?= $(shell uname -m | sed s/aarch64/arm64/)
 VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
 
 BPF_CFLAGS := -g -O2 -target bpf \
   -nostdinc \
-  -I$(BUILD_DIR)/include \
-  -I$(KERNEL_HEADERS)/include \
-  -I$(KERNEL_HEADERS)/include/uapi \
-  -I/usr/include/bpf \
-  -include $(VMLINUX_HDR)
+  -I$(BUILD_DIR)/include
 
 # Build directories & targets
 TARGETS        := client server
@@ -39,11 +39,12 @@ all: $(VMLINUX_HDR) $(TARGETS_BIN) $(BPF_OBJ_USER)
 $(VMLINUX_HDR):
 	@mkdir -p $(BUILD_DIR)
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
+	cp $@ src/bpf/vmlinux.h
 
-# Copy generic asm headers for BPF build
-$(ASM_HDR_DIR):
+# Copy headers to the build directory
+$(INCLUDE_DIR):
 	@mkdir -p $@
-	cp -r /usr/include/asm-generic/* $@
+	cp -r /usr/include/bpf $@
 
 # Build user-space clients
 $(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL)
@@ -51,7 +52,7 @@ $(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL)
 	$(CC) $(CFLAGS) -o $@ $< -lbpf -lelf $(LDFLAGS)
 
 # Compile the BPF .o with the proper kernel headers and BTF
-$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(ASM_HDR_DIR)
+$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(INCLUDE_DIR)
 	@mkdir -p $(BUILD_DIR)
 	$(BPF_CC) $(CFLAGS) $(BPF_CFLAGS) \
 	  -c $< -o $@
