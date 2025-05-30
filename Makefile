@@ -43,7 +43,7 @@ $(VMLINUX_HDR):
 # Copy generic asm headers for BPF build
 $(ASM_HDR_DIR):
 	@mkdir -p $@
-	cp -r $(KERNEL_HEADERS)/include/asm-generic/* $@
+	cp -r /usr/include/asm-generic/* $@
 
 # Build user-space clients
 $(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL)
