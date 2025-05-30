@@ -91,9 +91,15 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 static void cleanup(void)
 {
     if (rb)
+    {
         ring_buffer__free(rb);
+        rb = NULL;
+    }
     if (skel)
+    {
         pingpong_kern_bpf__destroy(skel);
+        skel = NULL;
+    }
 }
 
 static void fatal_handler(int sig)

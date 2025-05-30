@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <stdint.h>
+#include <errno.h>
+#include <arpa/inet.h>
 
 #define BACKLOG 1
 #define BUFSIZE 65536
@@ -101,51 +103,70 @@ int main(int argc, char *argv[])
     uint32_t count = ntohl(neg_net.count);
     uint16_t exp_port = ntohs(neg_net.exp_port);
 
-    close(conn_fd);
-    close(control_fd);
-
-    // Experimentation listener setup
+    // Attempt to set up experiment listener and notify client on control channel
+    uint32_t status = 0;
     int exp_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (exp_listen_fd < 0)
     {
-        perror("socket");
+        status = htonl(errno);
+        send_all(conn_fd, &status, sizeof(status));
+        close(conn_fd);
+        close(control_fd);
         return EXIT_FAILURE;
     }
     setsockopt(exp_listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     addr.sin_port = htons(exp_port);
     if (bind(exp_listen_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        perror("bind");
+        status = htonl(errno);
+        send_all(conn_fd, &status, sizeof(status));
+        close(conn_fd);
+        close(control_fd);
         return EXIT_FAILURE;
     }
     if (listen(exp_listen_fd, BACKLOG) < 0)
     {
-        perror("listen");
+        status = htonl(errno);
+        send_all(conn_fd, &status, sizeof(status));
+        close(conn_fd);
+        close(control_fd);
         return EXIT_FAILURE;
     }
-    printf("Experiment listening on port %u...\n", exp_port);
+    // success, notify client
+    send_all(conn_fd, &(uint32_t){0}, sizeof(uint32_t));
+    close(conn_fd);
+    close(control_fd);
 
+    printf("Experiment listening on port %u...\n", exp_port);
     int exp_fd = accept(exp_listen_fd, NULL, NULL);
     if (exp_fd < 0)
     {
-        perror("accept");
+        perror("accept experiment");
         return EXIT_FAILURE;
     }
     printf("Experiment connection established\n");
 
-    char buf[BUFSIZE];
+    // Read exactly size bytes and echo back
+    char *buf = malloc(size);
+    if (!buf)
+    {
+        perror("malloc");
+        return EXIT_FAILURE;
+    }
     for (uint32_t i = 0; i < count; i++)
     {
-        ssize_t n = recv(exp_fd, buf, BUFSIZE, 0);
-        if (n <= 0)
-            break;
-        if (send_all(exp_fd, buf, n) < 0)
+        if (recv_all(exp_fd, buf, size) < 0)
         {
-            perror("send");
+            perror("recv experiment");
+            break;
+        }
+        if (send_all(exp_fd, buf, size) < 0)
+        {
+            perror("send experiment");
             break;
         }
     }
-
+    free(buf);
     close(exp_fd);
     close(exp_listen_fd);
     return EXIT_SUCCESS;
