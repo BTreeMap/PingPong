@@ -46,7 +46,8 @@ jobs:
       DATE_TIME: ${{ needs.setup-timestamp.outputs.date_time }}
       SOURCE_DATE_EPOCH: ${{ needs.setup-timestamp.outputs.source_date_epoch }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
@@ -73,9 +74,12 @@ jobs:
           make clean
           make all
 
-      - name: Rename loader binary
+      - name: Package build artifacts
         run: |
-          mv build/pingpong_user build/pingpong_user-${{ matrix.platform }}
+          mkdir -p artifacts
+          mv build/client artifacts/pingpong-client-${{ matrix.platform }}
+          mv build/server artifacts/pingpong-server-${{ matrix.platform }}
+          mv build/pingpong_user artifacts/pingpong-ebpf-${{ matrix.platform }}
 
       - name: Set release version
         id: version
@@ -91,4 +95,4 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: true
           files: |
-            build/pingpong_user-${{ matrix.platform }}
+            artifacts/*
