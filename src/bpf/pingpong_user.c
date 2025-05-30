@@ -69,6 +69,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     return 0;
 }
 
+static const char *const doc = "PingPong BPF User Program - Filter events by source and destination ports";
+
 static struct argp argp = {options, parse_opt, 0, doc};
 
 static int handle_event(void *ctx, void *data, size_t data_sz)
