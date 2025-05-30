@@ -49,6 +49,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libbpf-dev libbpf1 libelf-dev pkgconf
+          curl -fsSL https://apt.llvm.org/llvm.sh | bash -s -- ${LLVM_VERSION} all
+          for tool in \
+              clang clang++ clang-format clang-tidy clangd \
+              lldb lld llc \
+              llvm-ar llvm-as llvm-link llvm-nm llvm-objdump \
+              llvm-profdata llvm-cov; \
+          do \
+              ln -sf /usr/bin/${tool}-${LLVM_VERSION} ${LLVM_HOME}/${tool} && command -v ${tool}; \
+          done
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          LLVM_VERSION: 19
+          LLVM_HOME: /usr/local/bin
 
       - name: Build project
         run: |
