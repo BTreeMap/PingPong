@@ -6,7 +6,7 @@ CC        := gcc
 BPF_CC    := clang
 
 # Basic flags
-CFLAGS    = -O2 -Wall -I$(BUILD_DIR) -I$(BPF_DIR) -DARCH=$(ARCH)
+CFLAGS    = -O2 -Wall -I$(BUILD_DIR) -I$(BPF_DIR) -Isrc -DARCH=$(ARCH)
 # BPF compile flags; includes kernel headers and BTF header
 BUILD_DIR := build
 INCLUDE_DIR := $(BUILD_DIR)/include

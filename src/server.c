@@ -8,11 +8,10 @@
 #include <errno.h>
 #include <arpa/inet.h>
 
+#include "common.h"
+
 #define BACKLOG 1
 #define BUFSIZE 65536
-
-// send_all ensures all data is sent
-int send_all(int sockfd, const void *buf, size_t len)
 {
     size_t total = 0;
     const char *p = buf;
@@ -104,36 +103,46 @@ int main(int argc, char *argv[])
     uint16_t exp_port = ntohs(neg_net.exp_port);
 
     // Attempt to set up experiment listener and notify client on control channel
-    uint32_t status = 0;
+    enum neg_status status = NEG_STATUS_OK;
     int exp_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (exp_listen_fd < 0)
     {
-        status = htonl(errno);
-        send_all(conn_fd, &status, sizeof(status));
+        uint32_t sn = htonl(NEG_STATUS_SOCKET);
+        send_all(conn_fd, &sn, sizeof(sn));
         close(conn_fd);
         close(control_fd);
         return EXIT_FAILURE;
     }
-    setsockopt(exp_listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (setsockopt(exp_listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+    {
+        uint32_t sn = htonl(NEG_STATUS_SETSOCKOPT);
+        send_all(conn_fd, &sn, sizeof(sn));
+        close(conn_fd);
+        close(control_fd);
+        return EXIT_FAILURE;
+    }
     addr.sin_port = htons(exp_port);
     if (bind(exp_listen_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        status = htonl(errno);
-        send_all(conn_fd, &status, sizeof(status));
+        uint32_t sn = htonl(NEG_STATUS_BIND);
+        send_all(conn_fd, &sn, sizeof(sn));
         close(conn_fd);
         close(control_fd);
         return EXIT_FAILURE;
     }
     if (listen(exp_listen_fd, BACKLOG) < 0)
     {
-        status = htonl(errno);
-        send_all(conn_fd, &status, sizeof(status));
+        uint32_t sn = htonl(NEG_STATUS_LISTEN);
+        send_all(conn_fd, &sn, sizeof(sn));
         close(conn_fd);
         close(control_fd);
         return EXIT_FAILURE;
     }
     // success, notify client
-    send_all(conn_fd, &(uint32_t){0}, sizeof(uint32_t));
+    {
+        uint32_t sn = htonl(NEG_STATUS_OK);
+        send_all(conn_fd, &sn, sizeof(sn));
+    }
     close(conn_fd);
     close(control_fd);
 

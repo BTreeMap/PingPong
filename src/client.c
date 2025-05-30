@@ -9,35 +9,7 @@
 #include <sys/time.h>
 #include <getopt.h>
 
-// send_all ensures all data is sent
-int send_all(int sockfd, const void *buf, size_t len)
-{
-    size_t total = 0;
-    const char *p = buf;
-    while (total < len)
-    {
-        ssize_t n = send(sockfd, p + total, len - total, 0);
-        if (n <= 0)
-            return -1;
-        total += n;
-    }
-    return 0;
-}
-
-// recv_all ensures all data is received
-int recv_all(int sockfd, void *buf, size_t len)
-{
-    size_t total = 0;
-    char *p = buf;
-    while (total < len)
-    {
-        ssize_t n = recv(sockfd, p + total, len - total, 0);
-        if (n <= 0)
-            return -1;
-        total += n;
-    }
-    return 0;
-}
+#include "common.h"
 
 // get current time in microseconds
 uint64_t time_us()
@@ -140,7 +112,37 @@ int main(int argc, char *argv[])
         perror("send negotiation");
         return EXIT_FAILURE;
     }
+
+    // receive server status
+    uint32_t status_net;
+    if (recv_all(ctrl_fd, &status_net, sizeof(status_net)) < 0)
+    {
+        perror("recv negotiation status");
+        return EXIT_FAILURE;
+    }
     close(ctrl_fd);
+    uint32_t status = ntohl(status_net);
+    if (status != NEG_STATUS_OK)
+    {
+        switch (status)
+        {
+        case NEG_STATUS_SOCKET:
+            fprintf(stderr, "Server error: failed to create experiment socket\n");
+            break;
+        case NEG_STATUS_SETSOCKOPT:
+            fprintf(stderr, "Server error: failed to set SO_REUSEADDR\n");
+            break;
+        case NEG_STATUS_BIND:
+            fprintf(stderr, "Server error: failed to bind experiment port\n");
+            break;
+        case NEG_STATUS_LISTEN:
+            fprintf(stderr, "Server error: failed to listen on experiment port\n");
+            break;
+        default:
+            fprintf(stderr, "Server error: unknown status %u\n", status);
+        }
+        return EXIT_FAILURE;
+    }
 
     // Experimental connection
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
