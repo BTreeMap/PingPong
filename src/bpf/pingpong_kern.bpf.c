@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+/* SPDX-License-Identifier: MIT OR GPL-2.0 */
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -90,4 +90,4 @@ int handle_tcp_rcv(struct pt_regs *ctx)
     return 0;
 }
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL"; // https://github.com/torvalds/linux/blob/master/include/linux/license.h
+char LICENSE[] SEC("license") = "GPL"; // https://github.com/torvalds/linux/blob/master/include/linux/license.h
