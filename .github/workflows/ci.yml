@@ -81,7 +81,7 @@ jobs:
         id: version
         run: |
           short_sha=$(echo $GITHUB_SHA | cut -c1-8)
-          ver="${DATE_TIME}-$short_sha"
+          ver="${DATE_TIME}.${short_sha}"
           echo "version=$ver" >> $GITHUB_OUTPUT
 
       - name: Create or update GitHub Release
