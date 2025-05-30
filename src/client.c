@@ -49,15 +49,17 @@ uint64_t time_us()
 
 int main(int argc, char *argv[])
 {
-    char *addr = NULL;
-    int port = 0;
+    char *ctrl_addr = NULL;
+    int ctrl_port = 0;
+    int exp_port = 0;
     int size = 0;
     int count = 0;
     char *output = NULL;
 
     static struct option long_options[] = {
         {"addr", required_argument, 0, 'a'},
-        {"port", required_argument, 0, 'p'},
+        {"control-port", required_argument, 0, 'P'},
+        {"exp-port", required_argument, 0, 'e'},
         {"size", required_argument, 0, 's'},
         {"count", required_argument, 0, 'c'},
         {"output", required_argument, 0, 'o'},
@@ -65,15 +67,18 @@ int main(int argc, char *argv[])
 
     int opt;
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "a:p:s:c:o:", long_options, &option_index)) != -1)
+    while ((opt = getopt_long(argc, argv, "a:P:e:s:c:o:", long_options, &option_index)) != -1)
     {
         switch (opt)
         {
         case 'a':
-            addr = optarg;
+            ctrl_addr = optarg;
             break;
-        case 'p':
-            port = atoi(optarg);
+        case 'P':
+            ctrl_port = atoi(optarg);
+            break;
+        case 'e':
+            exp_port = atoi(optarg);
             break;
         case 's':
             size = atoi(optarg);
@@ -85,36 +90,70 @@ int main(int argc, char *argv[])
             output = optarg;
             break;
         default:
-            fprintf(stderr, "Usage: %s -a <address> -p <port> -s <bytes> -c <number> -o <file>\n", argv[0]);
+            fprintf(stderr, "Usage: %s -a <address> -P <control_port> [-e <exp_port>] -s <bytes> -c <number> -o <file>\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
 
-    if (!addr || port <= 0 || size <= 0 || count <= 0 || !output)
+    if (!ctrl_addr || ctrl_port <= 0 || size <= 0 || count <= 0 || !output)
     {
-        fprintf(stderr, "Usage: %s -a <address> -p <port> -s <bytes> -c <number> -o <file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s -a <address> -P <control_port> [-e <exp_port>] -s <bytes> -c <number> -o <file>\n", argv[0]);
         return EXIT_FAILURE;
     }
+    if (exp_port <= 0)
+        exp_port = ctrl_port + 1;
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
+    // Negotiate on control channel
+    int ctrl_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (ctrl_fd < 0)
     {
-        perror("socket");
+        perror("socket control");
         return EXIT_FAILURE;
     }
 
     struct sockaddr_in serv;
     memset(&serv, 0, sizeof(serv));
     serv.sin_family = AF_INET;
-    serv.sin_port = htons(port);
-    if (inet_pton(AF_INET, addr, &serv.sin_addr) <= 0)
+    serv.sin_port = htons(ctrl_port);
+    if (inet_pton(AF_INET, ctrl_addr, &serv.sin_addr) <= 0)
     {
-        perror("inet_pton");
+        perror("inet_pton control");
         return EXIT_FAILURE;
     }
+    if (connect(ctrl_fd, (struct sockaddr *)&serv, sizeof(serv)) < 0)
+    {
+        perror("connect control");
+        return EXIT_FAILURE;
+    }
+
+    struct
+    {
+        uint32_t size;
+        uint32_t count;
+        uint16_t exp_port;
+    } neg_net;
+    neg_net.size = htonl(size);
+    neg_net.count = htonl(count);
+    neg_net.exp_port = htons(exp_port);
+    if (send_all(ctrl_fd, &neg_net, sizeof(neg_net)) < 0)
+    {
+        perror("send negotiation");
+        return EXIT_FAILURE;
+    }
+    close(ctrl_fd);
+
+    // Experimental connection
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+    {
+        perror("socket experiment");
+        return EXIT_FAILURE;
+    }
+
+    serv.sin_port = htons(exp_port);
     if (connect(sockfd, (struct sockaddr *)&serv, sizeof(serv)) < 0)
     {
-        perror("connect");
+        perror("connect experiment");
         return EXIT_FAILURE;
     }
 
