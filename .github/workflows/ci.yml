@@ -76,10 +76,10 @@ jobs:
 
       - name: Package build artifacts
         run: |
-          mkdir -p artifacts
-          mv build/client artifacts/pingpong-client-${{ matrix.platform }}
-          mv build/server artifacts/pingpong-server-${{ matrix.platform }}
-          mv build/pingpong_user artifacts/pingpong-ebpf-${{ matrix.platform }}
+          mkdir -p artifacts/pingpong-${{ matrix.platform }}
+          cp build/pingpong-* artifacts/pingpong-${{ matrix.platform }}
+          tar -czf artifacts/pingpong-${{ matrix.platform }}.tar.gz -C artifacts pingpong-${{ matrix.platform }}
+          rm -rf artifacts/pingpong-${{ matrix.platform }}
 
       - name: Set release version
         id: version
