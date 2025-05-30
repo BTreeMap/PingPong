@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
+#include <bpf/bpf_endian.h>
 
 // Define a structure for the data we want to send to user space
 struct event
@@ -42,8 +44,14 @@ int handle_tcp_sendmsg(struct pt_regs *ctx)
     // Populate sport, dport, etc. from struct sock *sk
     // This requires careful handling of kernel struct access
     // e.g., e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    // e->dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
-    // Ensure dport is in host byte order if needed: bpf_ntohs()
+    // Get the socket structure from the first argument of tcp_sendmsg
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+
+    // Extract source port (in host byte order)
+    e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
+
+    // Extract destination port (convert from network to host byte order)
+    e->dport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
 
     bpf_ringbuf_submit(e, 0);
     return 0;
@@ -56,7 +64,7 @@ int handle_tcp_rcv(struct pt_regs *ctx)
     __u64 ts = bpf_ktime_get_ns();
     __u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-    e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    e = bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
     if (!e)
     {
         return 0;

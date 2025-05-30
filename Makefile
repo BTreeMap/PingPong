@@ -20,6 +20,12 @@ ifneq ($(ARCH),arm64)
 endif
 endif
 
+ifeq ($(ARCH),amd64)
+  BPF_ARCH := __TARGET_ARCH_x86
+else ifeq ($(ARCH),arm64)
+  BPF_ARCH := __TARGET_ARCH_arm64
+endif
+
 HOST_KERNEL_VERSION  ?= $(shell uname -r)
 KERNEL_HEADERS       ?= /usr/src/linux-headers-$(HOST_KERNEL_VERSION)
 VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
@@ -27,7 +33,8 @@ VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
 BPF_CFLAGS := -g -O2 -target bpf \
   -nostdinc \
   -I$(BUILD_DIR)/include \
-  -DARCH=$(ARCH)
+  -DARCH=$(ARCH) \
+  -D$(BPF_ARCH)
 
 # Build directories & targets
 TARGETS        := client server
