@@ -7,5 +7,6 @@ build/
 # Ignore dotenv files
 .env
 
-# Ignore vmlinux.h
+# Ignore generated files
 src/bpf/vmlinux.h
+src/bpf/*.skel.h
