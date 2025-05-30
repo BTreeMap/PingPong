@@ -39,13 +39,13 @@ BPF_CFLAGS := -g -O2 -target bpf \
 
 # Build directories & targets
 TARGETS        := client server
-TARGETS_BIN    := $(TARGETS:%=$(BUILD_DIR)/%)
+TARGETS_BIN    := $(TARGETS:%=$(BUILD_DIR)/pingpong-%)
 
 # BPF artifacts
 BPF_DIR        := src/bpf
 BPF_OBJ_KERN   := $(BUILD_DIR)/pingpong_kern.bpf.o
 BPF_OBJ_SKEL   := $(BUILD_DIR)/pingpong_kern.skel.h
-BPF_OBJ_USER   := $(BUILD_DIR)/pingpong_user
+BPF_OBJ_USER   := $(BUILD_DIR)/pingpong-ebpf
 
 .PHONY: all clean
 
@@ -68,7 +68,7 @@ $(BUILD_DIR)/common.o: src/common.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Build user-space clients
-$(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL) $(BUILD_DIR)/common.o $(BPF_DIR)/event_defs.h
+$(BUILD_DIR)/pingpong-%: src/%.c $(BPF_OBJ_SKEL) $(BUILD_DIR)/common.o $(BPF_DIR)/event_defs.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $< $(BUILD_DIR)/common.o -lbpf -lelf $(LDFLAGS)
 
