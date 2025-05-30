@@ -22,9 +22,69 @@ struct event
     // Add other fields as needed
 };
 
+static __u16 target_sport = 0; // Global variable for target sport
+static __u16 target_dport = 0; // Global variable for target dport
+
+static struct argp_option options[] = {
+    {"sport", 's', "SPORT", 0, "Target source port to filter"},
+    {"dport", 'd', "DPORT", 0, "Target destination port to filter"},
+    {0}};
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state)
+{
+    switch (key)
+    {
+    case 's':
+        if (arg)
+        {
+            char *end;
+            long port = strtol(arg, &end, 10);
+            if (*end != '\0' || port <= 0 || port > 65535)
+            {
+                fprintf(stderr, "Invalid sport: %s\n", arg);
+                argp_usage(state);
+            }
+            target_sport = (__u16)port;
+        }
+        break;
+    case 'd':
+        if (arg)
+        {
+            char *end;
+            long port = strtol(arg, &end, 10);
+            if (*end != '\0' || port <= 0 || port > 65535)
+            {
+                fprintf(stderr, "Invalid dport: %s\n", arg);
+                argp_usage(state);
+            }
+            target_dport = (__u16)port;
+        }
+        break;
+    case ARGP_KEY_ARG:
+        argp_usage(state);
+        break;
+    default:
+        return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
+}
+
+static struct argp argp = {options, parse_opt, 0, doc};
+
 static int handle_event(void *ctx, void *data, size_t data_sz)
 {
     const struct event *e = data;
+
+    if (target_sport != 0 && ntohs(e->sport) != target_sport)
+    {
+        return 0; // Skip if sport filter is active and doesn't match
+    }
+
+    if (target_dport != 0 && ntohs(e->dport) != target_dport)
+    {
+        return 0; // Skip if dport filter is active and doesn't match
+    }
+
     // Process the event, e.g., print it or write to a file
     printf("ts: %llu, pid: %u, sport: %u, dport: %u\n",
            e->timestamp_ns, e->pid, ntohs(e->sport), ntohs(e->dport));
@@ -43,6 +103,14 @@ int main(int argc, char **argv)
     struct pingpong_kern_bpf *skel;
     struct ring_buffer *rb = NULL;
     int err;
+
+    // Parse command line arguments
+    err = argp_parse(&argp, argc, argv, 0, 0, 0);
+    if (err)
+    {
+        fprintf(stderr, "Failed to parse arguments\n");
+        return 1;
+    }
 
     // Open, load, and verify BPF application
     skel = pingpong_kern_bpf__open_and_load();

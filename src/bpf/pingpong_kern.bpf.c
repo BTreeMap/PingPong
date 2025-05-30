@@ -79,4 +79,4 @@ int handle_tcp_rcv(struct pt_regs *ctx)
     return 0;
 }
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
+char LICENSE[] SEC("license") = "MIT";
