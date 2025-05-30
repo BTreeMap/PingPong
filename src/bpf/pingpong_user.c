@@ -19,6 +19,7 @@ struct event
     __u32 pid;
     __u16 sport;
     __u16 dport;
+    __u8 event_type; // 1 for send, 2 for receive
     // Add other fields as needed
 };
 
@@ -88,8 +89,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     }
 
     // Process the event, e.g., print it or write to a file
-    printf("ts: %llu, pid: %u, sport: %u, dport: %u\n",
-           e->timestamp_ns, e->pid, ntohs(e->sport), ntohs(e->dport));
+    printf("ts: %llu, pid: %u, sport: %u, dport: %u, type: %s\n",
+           e->timestamp_ns, e->pid, ntohs(e->sport), ntohs(e->dport),
+           e->event_type == 1 ? "send" : "recv");
     return 0;
 }
 
