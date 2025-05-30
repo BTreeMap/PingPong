@@ -98,12 +98,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    struct
-    {
-        uint32_t size;
-        uint32_t count;
-        uint16_t exp_port;
-    } neg_net;
+    negotiation_t neg_net;
     neg_net.size = htonl(size);
     neg_net.count = htonl(count);
     neg_net.exp_port = htons(exp_port);

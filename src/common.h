@@ -23,4 +23,12 @@ enum neg_status
     NEG_STATUS_LISTEN = 4,
 };
 
+// Negotiation request parameters sent from client to server
+typedef struct negotiation
+{
+    uint32_t size;     // payload size per message (network order)
+    uint32_t count;    // number of exchanges (network order)
+    uint16_t exp_port; // experiment port (network order)
+} negotiation_t;
+
 #endif // PINGPONG_COMMON_H

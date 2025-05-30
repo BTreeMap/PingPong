@@ -60,12 +60,7 @@ int main(int argc, char *argv[])
     }
     printf("Client connected for negotiation\n");
 
-    struct
-    {
-        uint32_t size;
-        uint32_t count;
-        uint16_t exp_port;
-    } neg_net;
+    negotiation_t neg_net;
     if (recv_all(conn_fd, &neg_net, sizeof(neg_net)) < 0)
     {
         perror("recv negotiation");
