@@ -62,10 +62,15 @@ $(INCLUDE_DIR):
 	@mkdir -p $@
 	cp -r /usr/include/bpf $@
 
-# Build user-space clients
-$(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL) $(BPF_DIR)/event_defs.h
+# Build common libraries and headers
+$(BUILD_DIR)/common.o: src/common.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $< -lbpf -lelf $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Build user-space clients
+$(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL) $(BUILD_DIR)/common.o $(BPF_DIR)/event_defs.h
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $@ $< $(BUILD_DIR)/common.o -lbpf -lelf $(LDFLAGS)
 
 # Compile the BPF .o with the proper kernel headers and BTF
 $(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(INCLUDE_DIR) $(BPF_DIR)/event_defs.h

@@ -12,33 +12,6 @@
 
 #define BACKLOG 1
 #define BUFSIZE 65536
-{
-    size_t total = 0;
-    const char *p = buf;
-    while (total < len)
-    {
-        ssize_t n = send(sockfd, p + total, len - total, 0);
-        if (n <= 0)
-            return -1;
-        total += n;
-    }
-    return 0;
-}
-
-// recv_all ensures all data is received
-int recv_all(int sockfd, void *buf, size_t len)
-{
-    size_t total = 0;
-    char *p = buf;
-    while (total < len)
-    {
-        ssize_t n = recv(sockfd, p + total, len - total, 0);
-        if (n <= 0)
-            return -1;
-        total += n;
-    }
-    return 0;
-}
 
 int main(int argc, char *argv[])
 {
