@@ -1,5 +1,6 @@
 #include <argp.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,19 +73,64 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     const struct event *e = data;
 
     if (target_sport != 0 && e->sport != target_sport)
-    {
-        return 0; // Skip if sport filter is active and doesn't match
-    }
-
+        return 0;
     if (target_dport != 0 && e->dport != target_dport)
+        return 0;
+
+    char src[INET6_ADDRSTRLEN] = {0}, dst[INET6_ADDRSTRLEN] = {0};
+    if (e->af == AF_INET)
     {
-        return 0; // Skip if dport filter is active and doesn't match
+        struct in_addr ia;
+        ia.s_addr = htonl(e->saddr.v4);
+        inet_ntop(AF_INET, &ia, src, sizeof(src));
+        ia.s_addr = htonl(e->daddr.v4);
+        inet_ntop(AF_INET, &ia, dst, sizeof(dst));
+    }
+    else if (e->af == AF_INET6)
+    {
+        struct in6_addr ia6;
+        for (int i = 0; i < ADDR_V6_WORDS; i++)
+            ia6.s6_addr32[i] = htonl(e->saddr.v6[i]);
+        inet_ntop(AF_INET6, &ia6, src, sizeof(src));
+        for (int i = 0; i < ADDR_V6_WORDS; i++)
+            ia6.s6_addr32[i] = htonl(e->daddr.v6[i]);
+        inet_ntop(AF_INET6, &ia6, dst, sizeof(dst));
+    }
+    else
+    {
+        strncpy(src, "?", sizeof(src));
+        strncpy(dst, "?", sizeof(dst));
     }
 
-    // Process the event, e.g., print it or write to a file
-    printf("ts: %llu, pid: %u, sport: %u, dport: %u, type: %s\n",
-           e->timestamp_ns, e->pid, e->sport, e->dport,
-           e->event_type == EVENT_TYPE_TCP_SEND ? "send" : "recv");
+    const char *type_str;
+    switch (e->event_type)
+    {
+    case EVENT_TYPE_TCP_SEND:
+        type_str = "send_entry";
+        break;
+    case EVENT_TYPE_TCP_RECV:
+        type_str = "recv_entry";
+        break;
+    case EVENT_TYPE_TCP_SEND_EXIT:
+        type_str = "send_exit";
+        break;
+    case EVENT_TYPE_TCP_RECV_EXIT:
+        type_str = "recv_exit";
+        break;
+    default:
+        type_str = "unknown";
+    }
+
+    if (e->af == AF_INET)
+        printf("ts:%llu pid:%u %s:%u -> %s:%u type:%s\n",
+               e->timestamp_ns, e->pid,
+               src, e->sport, dst, e->dport,
+               type_str);
+    else
+        printf("ts:%llu pid:%u [%s]:%u -> [%s]:%u type:%s\n",
+               e->timestamp_ns, e->pid,
+               src, e->sport, dst, e->dport,
+               type_str);
     return 0;
 }
 

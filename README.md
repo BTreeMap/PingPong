@@ -37,10 +37,11 @@ Once the run is complete, PingPong writes all raw timestamps to a CSV file and t
 make all
 
 # On server
-sudo ./build/server --port 12345
+sudo ./pingpong-server --port 12345
+sudo ./pingpong-ebpf --
 
 # On client
-sudo ./build/client \
+sudo ./pingpong-client \
   --addr 192.0.2.10 \
   --port 12345 \
   --size 1024 \
