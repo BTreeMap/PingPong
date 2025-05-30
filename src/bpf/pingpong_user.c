@@ -16,8 +16,8 @@ struct event
 {
     __u64 timestamp_ns;
     __u32 pid;
-    u16 sport;
-    u16 dport;
+    __u16 sport;
+    __u16 dport;
     // Add other fields as needed
 };
 
