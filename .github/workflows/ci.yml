@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  setup-timestamp:
+    # Run on schedule or on push when commit message contains 'run-ci'
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, 'run-ci'))
+    outputs:
+      date: ${{ steps.timestamp.outputs.date }}
+      date_time: ${{ steps.timestamp.outputs.date_time }}
+      source_date_epoch: ${{ steps.timestamp.outputs.source_date_epoch }}
+    steps:
+      - name: Generate build timestamp
+        id: timestamp
+        run: |
+          now=$(date '+%s')
+          date=$(date -u -d "@$now" '+%Y-%m-%d')
+          date_time=$(date -u -d "@$now" '+%Y-%m-%d.%H-%M-%S')
+          year_month=$(date -u -d "@$now" '+%Y-%m')
+          source_date_epoch=$(date -u -d "${year_month}-01 00:00:00" '+%s')
+          echo "date=$date" >> $GITHUB_OUTPUT
+          echo "date_time=$date_time" >> $GITHUB_OUTPUT
+          echo "source_date_epoch=$source_date_epoch" >> $GITHUB_OUTPUT
+
+  build-matrix:
+    needs: setup-timestamp
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-24.04
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+    permissions:
+      contents: write
+
+    env:
+      DATE: ${{ needs.setup-timestamp.outputs.date }}
+      DATE_TIME: ${{ needs.setup-timestamp.outputs.date_time }}
+      SOURCE_DATE_EPOCH: ${{ needs.setup-timestamp.outputs.source_date_epoch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build project
+        run: |
+          make clean
+          make all
+
+      - name: Rename loader binary
+        run: |
+          mv build/pingpong_user build/pingpong_user-${{ matrix.platform }}
+
+      - name: Set release version
+        id: version
+        run: |
+          short_sha=$(echo $GITHUB_SHA | cut -c1-7)
+          ver="${DATE_TIME}-$short_sha"
+          echo "version=$ver" >> $GITHUB_OUTPUT
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          files: |
+            build/pingpong_user-${{ matrix.platform }}
