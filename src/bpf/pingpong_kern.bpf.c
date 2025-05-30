@@ -24,7 +24,7 @@ int handle_tcp_sendmsg(struct pt_regs *ctx)
     __u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     // Reserve space in the ring buffer
-    e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    e = bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
     if (!e)
     {
         return 0;
@@ -39,6 +39,11 @@ int handle_tcp_sendmsg(struct pt_regs *ctx)
     // e.g., e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
     // Get the socket structure from the first argument of tcp_sendmsg
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    if (!sk)
+    {
+        bpf_ringbuf_discard(e, 0);
+        return 0;
+    }
 
     // Extract source port (in host byte order)
     e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
@@ -72,6 +77,7 @@ int handle_tcp_rcv(struct pt_regs *ctx)
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     if (!sk)
     {
+        bpf_ringbuf_discard(e, 0);
         return 0;
     }
 
