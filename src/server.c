@@ -76,7 +76,6 @@ int main(int argc, char *argv[])
     uint16_t exp_port = ntohs(neg_net.exp_port);
 
     // Attempt to set up experiment listener and notify client on control channel
-    enum neg_status status = NEG_STATUS_OK;
     int exp_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (exp_listen_fd < 0)
     {
