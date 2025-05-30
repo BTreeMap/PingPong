@@ -6,19 +6,7 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 
-#define EVENT_TYPE_TCP_SEND 1
-#define EVENT_TYPE_TCP_RECV 2
-
-// Define a structure for the data we want to send to user space
-struct event
-{
-    __u64 timestamp_ns;
-    __u32 pid;
-    __u16 sport;
-    __u16 dport;
-    __u8 event_type; // 1 for send, 2 for receive
-    // Add other fields as needed, e.g., saddr, daddr, event_type
-};
+#include "event_defs.h" // Include the shared event definition
 
 // Ring buffer map to send events to user space
 struct
@@ -61,6 +49,7 @@ int handle_tcp_sendmsg(struct pt_regs *ctx)
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
+
 // Placeholder for kprobe on tcp_rcv_established or similar for received packets
 SEC("kprobe/tcp_rcv_established")
 int handle_tcp_rcv(struct pt_regs *ctx)
@@ -80,6 +69,16 @@ int handle_tcp_rcv(struct pt_regs *ctx)
     e->event_type = EVENT_TYPE_TCP_RECV; // Mark this as a receive event
 
     // Populate details from sk
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    if (!sk)
+    {
+        return 0;
+    }
+
+    // Extract source port (network byte order, will be converted in userspace)
+    e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    // Extract destination port (network byte order, will be converted in userspace)
+    e->dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
 
     bpf_ringbuf_submit(e, 0);
     return 0;

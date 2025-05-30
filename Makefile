@@ -6,7 +6,7 @@ CC        := gcc
 BPF_CC    := clang
 
 # Basic flags
-CFLAGS    = -O2 -Wall -I$(BUILD_DIR) -DARCH=$(ARCH)
+CFLAGS    = -O2 -Wall -I$(BUILD_DIR) -I$(BPF_DIR) -DARCH=$(ARCH)
 # BPF compile flags; includes kernel headers and BTF header
 BUILD_DIR := build
 INCLUDE_DIR := $(BUILD_DIR)/include
@@ -33,6 +33,7 @@ VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
 BPF_CFLAGS := -g -O2 -target bpf \
   -nostdinc \
   -I$(BUILD_DIR)/include \
+  -I$(BPF_DIR) \
   -DARCH=$(ARCH) \
   -D$(BPF_ARCH)
 
@@ -62,12 +63,12 @@ $(INCLUDE_DIR):
 	cp -r /usr/include/bpf $@
 
 # Build user-space clients
-$(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL)
+$(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL) $(BPF_DIR)/event_defs.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $< -lbpf -lelf $(LDFLAGS)
 
 # Compile the BPF .o with the proper kernel headers and BTF
-$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(INCLUDE_DIR)
+$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(INCLUDE_DIR) $(BPF_DIR)/event_defs.h
 	@mkdir -p $(BUILD_DIR)
 	$(BPF_CC) $(CFLAGS) $(BPF_CFLAGS) \
 	  -c $< -o $@
@@ -79,7 +80,7 @@ $(BPF_OBJ_SKEL): $(BPF_OBJ_KERN)
 	cp $@ $(BPF_DIR)/pingpong_kern.skel.h
 
 # Build the BPF loader/user program against libbpf
-$(BPF_OBJ_USER): $(BPF_DIR)/pingpong_user.c $(BPF_OBJ_SKEL)
+$(BPF_OBJ_USER): $(BPF_DIR)/pingpong_user.c $(BPF_OBJ_SKEL) $(BPF_DIR)/event_defs.h
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -g -O2 \
 	  $< -lbpf -lelf \
