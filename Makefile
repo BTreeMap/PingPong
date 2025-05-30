@@ -6,20 +6,28 @@ CC        := gcc
 BPF_CC    := clang
 
 # Basic flags
-CFLAGS    = -O2 -Wall -I$(BUILD_DIR)
+CFLAGS    = -O2 -Wall -I$(BUILD_DIR) -DARCH=$(ARCH)
 # BPF compile flags; includes kernel headers and BTF header
 BUILD_DIR := build
 INCLUDE_DIR := $(BUILD_DIR)/include
 # pick up your running‐kernel version
 
+# Normalize architecture to supported values
+ARCH := $(shell uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
+ifneq ($(ARCH),amd64)
+ifneq ($(ARCH),arm64)
+	$(error Unsupported architecture: $(ARCH_RAW). Only amd64 and arm64 are supported)
+endif
+endif
+
 HOST_KERNEL_VERSION  ?= $(shell uname -r)
 KERNEL_HEADERS       ?= /usr/src/linux-headers-$(HOST_KERNEL_VERSION)
-ARCH                 ?= $(shell uname -m | sed s/aarch64/arm64/)
 VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
 
 BPF_CFLAGS := -g -O2 -target bpf \
   -nostdinc \
-  -I$(BUILD_DIR)/include
+  -I$(BUILD_DIR)/include \
+  -DARCH=$(ARCH)
 
 # Build directories & targets
 TARGETS        := client server
