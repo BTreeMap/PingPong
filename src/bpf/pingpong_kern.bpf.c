@@ -46,9 +46,9 @@ int handle_tcp_sendmsg(struct pt_regs *ctx)
     }
 
     // Extract source port (in host byte order)
-    e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
+    e->sport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_num));
 
-    // Extract destination port (convert from network to host byte order)
+    // Extract destination port (in host byte order)
     e->dport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
 
     bpf_ringbuf_submit(e, 0);
@@ -81,10 +81,10 @@ int handle_tcp_rcv(struct pt_regs *ctx)
         return 0;
     }
 
-    // Extract source port (network byte order, will be converted in userspace)
-    e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
-    // Extract destination port (network byte order, will be converted in userspace)
-    e->dport = BPF_CORE_READ(sk, __sk_common.skc_dport);
+    // Extract source port (in host byte order)
+    e->sport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_num));
+    // Extract destination port (in host byte order)
+    e->dport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
 
     bpf_ringbuf_submit(e, 0);
     return 0;

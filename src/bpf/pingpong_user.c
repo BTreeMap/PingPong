@@ -71,19 +71,19 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 {
     const struct event *e = data;
 
-    if (target_sport != 0 && ntohs(e->sport) != target_sport)
+    if (target_sport != 0 && e->sport != target_sport)
     {
         return 0; // Skip if sport filter is active and doesn't match
     }
 
-    if (target_dport != 0 && ntohs(e->dport) != target_dport)
+    if (target_dport != 0 && e->dport != target_dport)
     {
         return 0; // Skip if dport filter is active and doesn't match
     }
 
     // Process the event, e.g., print it or write to a file
     printf("ts: %llu, pid: %u, sport: %u, dport: %u, type: %s\n",
-           e->timestamp_ns, e->pid, ntohs(e->sport), ntohs(e->dport),
+           e->timestamp_ns, e->pid, e->sport, e->dport,
            e->event_type == EVENT_TYPE_TCP_SEND ? "send" : "recv");
     return 0;
 }
