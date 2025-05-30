@@ -3,9 +3,10 @@ CC        := gcc
 BPF_CC    := clang
 
 # Basic flags
-CFLAGS    := -O2 -Wall
+CFLAGS    = -O2 -Wall -I$(BUILD_DIR)
 # BPF compile flags; includes kernel headers and BTF header
 BUILD_DIR := build
+ASM_HDR_DIR := $(BUILD_DIR)/include/asm
 # pick up your running‐kernel version
 HOST_KERNEL_VERSION ?= $(shell uname -r)
 KERNEL_HEADERS       ?= /usr/src/linux-headers-$(HOST_KERNEL_VERSION)
@@ -14,12 +15,10 @@ VMLINUX_HDR          ?= $(BUILD_DIR)/vmlinux.h
 
 BPF_CFLAGS := -g -O2 -target bpf \
   -nostdinc \
+  -I$(BUILD_DIR)/include \
   -I$(KERNEL_HEADERS)/include \
   -I$(KERNEL_HEADERS)/include/uapi \
-  -I$(KERNEL_HEADERS)/include/generated \
-  -I$(KERNEL_HEADERS)/include/generated/uapi \
-  -I$(KERNEL_HEADERS)/arch/$(ARCH)/include \
-  -isystem /usr/include/bpf \
+  -I/usr/include/bpf \
   -include $(VMLINUX_HDR)
 
 # Build directories & targets
@@ -41,13 +40,18 @@ $(VMLINUX_HDR):
 	@mkdir -p $(BUILD_DIR)
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
 
+# Copy generic asm headers for BPF build
+$(ASM_HDR_DIR):
+	@mkdir -p $@
+	cp -r $(KERNEL_HEADERS)/include/asm-generic/* $@
+
 # Build user-space clients
-$(BUILD_DIR)/%: src/%.c
+$(BUILD_DIR)/%: src/%.c $(BPF_OBJ_SKEL)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $< -lbpf -lelf $(LDFLAGS)
 
 # Compile the BPF .o with the proper kernel headers and BTF
-$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR)
+$(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(ASM_HDR_DIR)
 	@mkdir -p $(BUILD_DIR)
 	$(BPF_CC) $(CFLAGS) $(BPF_CFLAGS) \
 	  -c $< -o $@
