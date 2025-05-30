@@ -39,7 +39,7 @@ all: $(VMLINUX_HDR) $(TARGETS_BIN) $(BPF_OBJ_USER)
 $(VMLINUX_HDR):
 	@mkdir -p $(BUILD_DIR)
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
-	cp $@ src/bpf/vmlinux.h
+	cp $@ $(BPF_DIR)/vmlinux.h
 
 # Copy headers to the build directory
 $(INCLUDE_DIR):
@@ -61,6 +61,7 @@ $(BPF_OBJ_KERN): $(BPF_DIR)/pingpong_kern.bpf.c $(VMLINUX_HDR) $(INCLUDE_DIR)
 $(BPF_OBJ_SKEL): $(BPF_OBJ_KERN)
 	@mkdir -p $(BUILD_DIR)
 	bpftool gen skeleton $< > $@
+	cp $@ $(BPF_DIR)/pingpong_kern.skel.h
 
 # Build the BPF loader/user program against libbpf
 $(BPF_OBJ_USER): $(BPF_DIR)/pingpong_user.c $(BPF_OBJ_SKEL)
