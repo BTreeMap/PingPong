@@ -34,7 +34,7 @@ static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *s
     e->event_type = evt_type;
     e->af = BPF_CORE_READ(sk, __sk_common.skc_family);
     // ports in host order
-    e->sport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_num));
+    e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
     e->dport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
 
     if (e->af == AF_INET)
@@ -94,4 +94,4 @@ int BPF_KRETPROBE(handle_tcp_recvmsg_ret)
 }
 
 // Only GPL-compatible licenses can use all BPF features <https://github.com/torvalds/linux/blob/master/include/linux/license.h>
-char LICENSE[] SEC("license") = "GPL"; 
+char LICENSE[] SEC("license") = "GPL";
