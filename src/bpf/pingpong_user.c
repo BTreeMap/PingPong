@@ -77,6 +77,34 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     if (target_dport != 0 && e->dport != target_dport)
         return 0;
 
+    const char *type_str;
+    switch (e->event_type)
+    {
+    case EVENT_TYPE_TCP_SEND:
+        type_str = "send_entry";
+        break;
+    case EVENT_TYPE_TCP_RECV:
+        type_str = "recv_entry";
+        break;
+    case EVENT_TYPE_TCP_SEND_EXIT:
+        type_str = "send_exit";
+        break;
+    case EVENT_TYPE_TCP_RECV_EXIT:
+        type_str = "recv_exit";
+        break;
+    default:
+        type_str = "unknown";
+    }
+
+    // For exit events, address info may not be captured; print minimal info
+    bool is_exit = (e->event_type == EVENT_TYPE_TCP_SEND_EXIT ||
+                    e->event_type == EVENT_TYPE_TCP_RECV_EXIT);
+    if (is_exit)
+    {
+        printf("ts:%llu pid:%u type:%s\n", e->timestamp_ns, e->pid, type_str);
+        return 0;
+    }
+
     char src[INET6_ADDRSTRLEN] = {0}, dst[INET6_ADDRSTRLEN] = {0};
     if (e->af == AF_INET)
     {
@@ -106,45 +134,34 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
         strncpy(dst, "?", sizeof(dst));
     }
 
-    const char *type_str;
-    switch (e->event_type)
-    {
-    case EVENT_TYPE_TCP_SEND:
-        type_str = "send_entry";
-        break;
-    case EVENT_TYPE_TCP_RECV:
-        type_str = "recv_entry";
-        break;
-    case EVENT_TYPE_TCP_SEND_EXIT:
-        type_str = "send_exit";
-        break;
-    case EVENT_TYPE_TCP_RECV_EXIT:
-        type_str = "recv_exit";
-        break;
-    default:
-        type_str = "unknown";
-    }
-
+    // Print with direction depending on send/receive
+    bool is_send = (e->event_type == EVENT_TYPE_TCP_SEND ||
+                    e->event_type == EVENT_TYPE_TCP_SEND_EXIT);
     if (e->af == AF_INET)
     {
-        printf("ts:%llu pid:%u %s:%u -> %s:%u type:%s\n",
-               e->timestamp_ns, e->pid,
-               src, e->sport, dst, e->dport,
-               type_str);
-    }
-    else if (e->af == AF_INET6)
-    {
-        printf("ts:%llu pid:%u [%s]:%u -> [%s]:%u type:%s\n",
-               e->timestamp_ns, e->pid,
-               src, e->sport, dst, e->dport,
-               type_str);
+        if (is_send)
+        {
+            printf("ts:%llu pid:%u type:%s %s:%u -> %s:%u\n",
+                   e->timestamp_ns, e->pid, type_str, src, e->sport, dst, e->dport);
+        }
+        else
+        {
+            printf("ts:%llu pid:%u type:%s %s:%u -> %s:%u\n",
+                   e->timestamp_ns, e->pid, type_str, dst, e->dport, src, e->sport);
+        }
     }
     else
     {
-        printf("ts:%llu pid:%u src:unknown:%u -> dst:unknown:%u type:%s\n",
-               e->timestamp_ns, e->pid,
-               e->sport, e->dport,
-               type_str);
+        if (is_send)
+        {
+            printf("ts:%llu pid:%u type:%s [%s]:%u -> [%s]:%u\n",
+                   e->timestamp_ns, e->pid, type_str, src, e->sport, dst, e->dport);
+        }
+        else
+        {
+            printf("ts:%llu pid:%u type:%s [%s]:%u -> [%s]:%u\n",
+                   e->timestamp_ns, e->pid, type_str, dst, e->dport, src, e->sport);
+        }
     }
     return 0;
 }
