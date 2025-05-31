@@ -81,19 +81,23 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     if (e->af == AF_INET)
     {
         struct in_addr ia;
-        ia.s_addr = htonl(e->saddr.v4);
+        ia.s_addr = e->saddr.v4;
         inet_ntop(AF_INET, &ia, src, sizeof(src));
-        ia.s_addr = htonl(e->daddr.v4);
+        ia.s_addr = e->daddr.v4;
         inet_ntop(AF_INET, &ia, dst, sizeof(dst));
     }
     else if (e->af == AF_INET6)
     {
         struct in6_addr ia6;
         for (int i = 0; i < ADDR_V6_WORDS; i++)
-            ia6.s6_addr32[i] = htonl(e->saddr.v6[i]);
+        {
+            ia6.s6_addr32[i] = e->saddr.v6[i];
+        }
         inet_ntop(AF_INET6, &ia6, src, sizeof(src));
         for (int i = 0; i < ADDR_V6_WORDS; i++)
-            ia6.s6_addr32[i] = htonl(e->daddr.v6[i]);
+        {
+            ia6.s6_addr32[i] = e->daddr.v6[i];
+        }
         inet_ntop(AF_INET6, &ia6, dst, sizeof(dst));
     }
     else
@@ -122,29 +126,51 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     }
 
     if (e->af == AF_INET)
+    {
         printf("ts:%llu pid:%u %s:%u -> %s:%u type:%s\n",
                e->timestamp_ns, e->pid,
                src, e->sport, dst, e->dport,
                type_str);
-    else
+    }
+    else if (e->af == AF_INET6)
+    {
         printf("ts:%llu pid:%u [%s]:%u -> [%s]:%u type:%s\n",
                e->timestamp_ns, e->pid,
                src, e->sport, dst, e->dport,
                type_str);
+    }
+    else
+    {
+        printf("ts:%llu pid:%u src:unknown:%u -> dst:unknown:%u type:%s\n",
+               e->timestamp_ns, e->pid,
+               e->sport, e->dport,
+               type_str);
+    }
     return 0;
 }
 
 static void cleanup(void)
 {
+    int rb_cleanup = 0, skel_cleanup = 0;
     if (rb)
     {
         ring_buffer__free(rb);
         rb = NULL;
+        rb_cleanup = 1;
     }
     if (skel)
     {
         pingpong_kern_bpf__destroy(skel);
         skel = NULL;
+        skel_cleanup = 1;
+    }
+    if (rb_cleanup)
+    {
+        fprintf(stderr, "Ring buffer cleaned up\n");
+    }
+    if (skel_cleanup)
+    {
+        fprintf(stderr, "BPF skeleton cleaned up\n");
     }
 }
 
@@ -208,8 +234,8 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
-           "to see output of the BPF programs.\n");
+    fprintf(stderr, "Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
+                    "to see output of the BPF programs.\n");
 
     while (!exiting)
     {
@@ -222,7 +248,7 @@ int main(int argc, char **argv)
         }
         if (err < 0)
         {
-            printf("Error polling ring buffer: %d\n", err);
+            fprintf(stderr, "Error polling ring buffer: %d\n", err);
             break;
         }
     }
