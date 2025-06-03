@@ -13,6 +13,9 @@ RUN apt-get update && \
         ca-certificates \
         curl \
         gnupg \
+        iproute2 \
+        iptables \
+        libbpf1 \
         lsb-release \
     && \
     # Install Tailscale
@@ -26,9 +29,6 @@ RUN apt-get update && \
     chmod 0644 /etc/apt/sources.list.d/tailscale.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        iproute2 \
-        iptables \
-        libbpf1 \
         tailscale \
         tailscale-archive-keyring \
     && \
@@ -49,7 +49,13 @@ FROM scratch
 COPY --from=builder / /
 
 # Add the application directory to the PATH
-ENV PATH="/opt/pingpong:${PATH}"
+ENV PATH="/opt/pingpong:${PATH}" \
+    ROLE="server" \
+    CONTROL_PORT="4242" \
+    ADDR="" \
+    SIZE="1024" \
+    COUNT="100" \
+    OUTPUT="/var/lib/pingpong/client.log"
 
 # Set the user and working directory.
 USER root
