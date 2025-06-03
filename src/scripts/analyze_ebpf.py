@@ -70,7 +70,7 @@ def main():
     client_bin = os.path.join(root, "build", "pingpong-client")
     # launch eBPF monitor with port-based filter
     ebpf_proc = subprocess.Popen(
-        [ebpf_bin, "--sport", str(args.exp_port), "--dport", str(args.exp_port)],
+        [ebpf_bin, "--dport", str(args.exp_port)],
         stdout=subprocess.PIPE,
         stderr=sys.stderr,
         text=True,
