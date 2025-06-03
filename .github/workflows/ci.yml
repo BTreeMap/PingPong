@@ -15,6 +15,7 @@ jobs:
       date: ${{ steps.timestamp.outputs.date }}
       date_time: ${{ steps.timestamp.outputs.date_time }}
       source_date_epoch: ${{ steps.timestamp.outputs.source_date_epoch }}
+      repo: ${{ steps.timestamp.outputs.repo }}
     steps:
       - name: Generate build timestamp
         id: timestamp
@@ -119,5 +120,5 @@ jobs:
           build-args: |
             PLATFORM=${{ matrix.platform }}
           tags: |
-            ghcr.io/${{ env.REPO }}:${{ env.DATE_TIME }}-${{ matrix.platform }}
+            ghcr.io/${{ env.REPO }}:${{ steps.version.outputs.version }}-${{ matrix.platform }}
           push: true
