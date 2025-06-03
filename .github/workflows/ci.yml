@@ -123,4 +123,4 @@ jobs:
             PLATFORM=${{ matrix.platform }}
           tags: |
             ghcr.io/${{ env.REPO }}:${{ steps.version.outputs.version }}-${{ matrix.platform }}
-          push: true
+          outputs: "type=registry,compression=zstd,force-compression=true,compression-level=3,rewrite-timestamp=true,oci-mediatypes=true"

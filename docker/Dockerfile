@@ -1,11 +1,11 @@
 # Dockerfile for PingPong server
 # Uses precompiled binaries packaged per architecture
-ARG PLATFORM
 FROM alpine:3.22
 
-# Extract the compiled binaries into /app
-COPY --chown=root:root pingpong /app/
-WORKDIR /app/pingpong
+# Extract the compiled binaries into /opt
+
+COPY --chown=root:root pingpong /opt/pingpong/
+WORKDIR /opt/pingpong
 
 # Launch the server by default
 ENTRYPOINT ["./pingpong-ebpf"]
