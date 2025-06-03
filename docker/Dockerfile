@@ -32,6 +32,7 @@ RUN apt-get update && \
         tailscale \
         tailscale-archive-keyring \
     && \
+    apt-get clean && \
     rm -rf \
         /tmp/* \
         /var/cache/apt/* \
