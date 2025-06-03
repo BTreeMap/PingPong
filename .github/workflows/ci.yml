@@ -124,7 +124,7 @@ jobs:
           build-args: |
             PLATFORM=${{ matrix.platform }}
           tags: |
-            ghcr.io/${{ env.REPO }}:${{ steps.version.outputs.version }}-${{ matrix.platform }}
+            ghcr.io/${{ env.REPO }}:${{ steps.version.outputs.version }}.${{ matrix.platform }}
           outputs: "type=registry,compression=zstd,force-compression=true,compression-level=3,rewrite-timestamp=true,oci-mediatypes=true"
   
   create-manifest:
@@ -148,8 +148,8 @@ jobs:
       - name: Create and push manifest list
         run: |
           version="${DATE_TIME_VAR}.${SHA_VAR}"
-          AMD64_TAG="${DOCKER_IMAGE_NAME}:${version}-amd64"
-          ARM64_TAG="${DOCKER_IMAGE_NAME}:${version}-arm64"
+          AMD64_TAG="${DOCKER_IMAGE_NAME}:${version}.amd64"
+          ARM64_TAG="${DOCKER_IMAGE_NAME}:${version}.arm64"
 
           # All the tags we want to create
           TAG_OPTIONS=()
@@ -169,8 +169,3 @@ jobs:
           # Create a single manifest with multiple tags
           echo "Creating manifest with tags: ${TAGS[*]}"
           docker buildx imagetools create "${TAG_OPTIONS[@]}" "${AMD64_TAG}" "${ARM64_TAG}"
-        env:
-          DOCKER_IMAGE_NAME: ${{ needs.setup-env.outputs.repo }}
-          DATE_VAR: ${{ needs.setup-env.outputs.date }}
-          DATE_TIME_VAR: ${{ needs.setup-env.outputs.date_time }}
-          SHA_VAR: ${{ needs.setup-env.outputs.short_sha }}
