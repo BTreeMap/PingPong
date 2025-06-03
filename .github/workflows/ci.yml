@@ -27,7 +27,7 @@ jobs:
           echo "date=$date" >> $GITHUB_OUTPUT
           echo "date_time=$date_time" >> $GITHUB_OUTPUT
           echo "source_date_epoch=$source_date_epoch" >> $GITHUB_OUTPUT
-          echo "repo=${GITHUB_REPOSITORY@L}" >> $GITHUB_OUTPUT
+          echo "repo=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
 
   build-matrix:
     needs: setup-timestamp
