@@ -82,6 +82,7 @@ jobs:
         run: |
           mkdir -p artifacts/pingpong-${{ matrix.platform }}
           cp build/pingpong-* artifacts/pingpong-${{ matrix.platform }}
+          mkdir -p docker/pingpong
           cp build/pingpong-* docker/pingpong
           tar -czf artifacts/pingpong-${{ matrix.platform }}.tar.gz -C artifacts pingpong-${{ matrix.platform }}
           rm -rf artifacts/pingpong-${{ matrix.platform }}
