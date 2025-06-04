@@ -212,11 +212,11 @@ static void cleanup(void)
     }
     if (rb_cleanup)
     {
-        fprintf(stderr, "Ring buffer cleaned up\n");
+        fprintf(stderr, "[INFO] Ring buffer cleaned up\n");
     }
     if (skel_cleanup)
     {
-        fprintf(stderr, "BPF skeleton cleaned up\n");
+        fprintf(stderr, "[INFO] BPF skeleton cleaned up\n");
     }
 }
 
