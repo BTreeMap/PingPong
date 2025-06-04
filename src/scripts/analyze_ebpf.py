@@ -40,12 +40,28 @@ class Event:
         self.srtt_us = srtt_us
 
 
+curr_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.abspath(os.path.join(curr_dir, "..", ".."))
+demo_dir = os.path.join(root_dir, "demo")
+
+
 def parse_args():
     p = argparse.ArgumentParser(description="Analyze eBPF pingpong event logs.")
     p.add_argument(
-        "--inputs", nargs="+", required=True, help="One or more eBPF event log files"
+        "--inputs",
+        nargs="+",
+        type=str,
+        default=[
+            os.path.join(demo_dir, "client.log"),
+            os.path.join(demo_dir, "server.log"),
+        ],
+        help="One or more eBPF event log files",
     )
-    p.add_argument("--output", default="results.csv", help="CSV output filename")
+    p.add_argument(
+        "--output",
+        default=os.path.join(demo_dir, "results.csv"),
+        help="CSV output filename",
+    )
     p.add_argument(
         "--client-ip", default="100.80.0.1", help="Client IP address to filter events"
     )
@@ -58,10 +74,12 @@ def parse_args():
         default=False,
         help="Enable intelligent trimming of incomplete cycle runs",
     )
-    p.add_argument("--plot", action="store_true", help="Generate CDF plot after CSV")
+    p.add_argument(
+        "--plot", action="store_true", default=True, help="Generate CDF plot after CSV"
+    )
     p.add_argument(
         "--plot-output",
-        default="plots/latency_cdf.png",
+        default=os.path.join(demo_dir, "latency_cdf.png"),
         help="Output image for CDF plot",
     )
     return p.parse_args()
