@@ -130,7 +130,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
                     e->event_type == EVENT_TYPE_TCP_RECV_EXIT);
     if (is_exit)
     {
-        printf("ts:%llu pid:%u type:%s id:%llu\n", e->timestamp_ns, e->pid, type_str, e->sock_id);
+        printf("ts:%llu sock:%llu pid:%u type:%s srtt_us:%u\n", e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us);
         return 0;
     }
 
@@ -170,26 +170,26 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     {
         if (is_send)
         {
-            printf("ts:%llu pid:%u type:%s id:%llu %s:%u -> %s:%u\n",
-                   e->timestamp_ns, e->pid, type_str, e->sock_id, src, e->sport, dst, e->dport);
+            printf("ts:%llu sock:%llu pid:%u type:%s srtt:%u %s:%u -> %s:%u\n",
+                   e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us, src, e->sport, dst, e->dport);
         }
         else
         {
-            printf("ts:%llu pid:%u type:%s id:%llu %s:%u -> %s:%u\n",
-                   e->timestamp_ns, e->pid, type_str, e->sock_id, dst, e->dport, src, e->sport);
+            printf("ts:%llu sock:%llu pid:%u type:%s srtt:%u %s:%u -> %s:%u\n",
+                   e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us, dst, e->dport, src, e->sport);
         }
     }
     else
     {
         if (is_send)
         {
-            printf("ts:%llu pid:%u type:%s id:%llu [%s]:%u -> [%s]:%u\n",
-                   e->timestamp_ns, e->pid, type_str, e->sock_id, src, e->sport, dst, e->dport);
+            printf("ts:%llu sock:%llu pid:%u type:%s srtt:%u [%s]:%u -> [%s]:%u\n",
+                   e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us, src, e->sport, dst, e->dport);
         }
         else
         {
-            printf("ts:%llu pid:%u type:%s id:%llu [%s]:%u -> [%s]:%u\n",
-                   e->timestamp_ns, e->pid, type_str, e->sock_id, dst, e->dport, src, e->sport);
+            printf("ts:%llu sock:%llu pid:%u type:%s srtt:%u [%s]:%u -> [%s]:%u\n",
+                   e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us, dst, e->dport, src, e->sport);
         }
     }
     return 0;
