@@ -73,11 +73,6 @@ def parse_args():
     p.add_argument(
         "--plot", action="store_true", default=True, help="Generate CDF plot after CSV"
     )
-    p.add_argument(
-        "--plot-output",
-        default=os.path.join(demo_dir, "latency_cdf.png"),
-        help="Output image for CDF plot",
-    )
     return p.parse_args()
 
 
@@ -277,21 +272,23 @@ def main():
     for f, m in zip(args.inputs, metrics):
         write_csv(os.path.splitext(f)[0] + ".csv", m)
     if args.plot:
-        # ensure output directory exists
-        os.makedirs(os.path.dirname(args.plot_output), exist_ok=True)
-        plot_py = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "plot_cdf.py")
-        )
-        cmd = [
-            sys.executable,
-            plot_py,
-            "--input",
-            args.output,
-            "--output",
-            args.plot_output,
-        ]
-        print(f"Generating CDF plot to {args.plot_output}")
-        subprocess.run(cmd, check=True)
+        plot_py = os.path.abspath(os.path.join(curr_dir, "plot_cdf.py"))
+        for f in args.inputs:
+            if not os.path.exists(os.path.splitext(f)[0] + ".csv"):
+                print(f"CSV file for {f} not found; skipping plot generation.")
+            else:
+                plot_input = os.path.splitext(f)[0] + ".csv"
+                plot_output = os.path.splitext(f)[0] + "_cdf.png"
+                cmd = [
+                    sys.executable,
+                    plot_py,
+                    "--input",
+                    plot_input,
+                    "--output",
+                    plot_output,
+                ]
+                print(f"Generating CDF plot to {plot_output}")
+                subprocess.run(cmd, check=True)
 
 
 if __name__ == "__main__":
