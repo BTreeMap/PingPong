@@ -16,8 +16,17 @@
 struct
 {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 64 * 1024 * 1024); // 64 MiB
+    __uint(max_entries, 16 * 1024 * 1024); // 16 MiB
 } events SEC(".maps");
+
+// Map to stash the 'sk' pointer at entry, keyed by thread ID
+struct
+{
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 65536); // 64K entries
+    __type(key, u64);           // pid_tgid (high 32 bits=TGID, low 32=PID)
+    __type(value, u64);         // (u64) sk pointer
+} sk_cache SEC(".maps");
 
 static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *sk, __u8 evt_type)
 {
