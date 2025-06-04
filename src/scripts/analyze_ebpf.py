@@ -1,177 +1,258 @@
 #!/usr/bin/env python3
 """
-Run the eBPF user-space monitor, parse entry/exit events, match pairs, and output CSV and optionally plot CDFs.
+Modular eBPF pingpong analyzer: parses recorded event logs, matches full ping-pong cycles, computes client/server/network latencies, and writes CSV (and optional CDF plot).
 """
 import argparse
-import subprocess
-import sys
-import re
 import csv
+import re
+import sys
 import os
-import time
+import subprocess
+from typing import List, Dict, Optional
 
-EVENT_PAT = re.compile(r"ts:(\d+) pid:(\d+) type:(\w+)")
+EVENT_RE = re.compile(
+    r"ts:(?P<ts>\d+)\s+sock:(?P<sock>\d+)\s+pid:(?P<pid>\d+)\s+type:(?P<type>\w+)\s+srtt:(?P<srtt>\d+)\s+(?P<addr>.+)"
+)
+ADDR_RE = re.compile(
+    r"(?P<src>\[?[0-9A-Fa-f:\.]+\]?):(?P<srcp>\d+)\s*->\s*(?P<dst>\[?[0-9A-Fa-f:\.]+\]?):(?P<dstp>\d+)"
+)
+
+
+class Event:
+    def __init__(
+        self,
+        ts_us: float,
+        sock: int,
+        evt_type: str,
+        src: str,
+        srcp: int,
+        dst: str,
+        dstp: int,
+        srtt_us: int,
+    ):
+        self.ts = ts_us
+        self.sock = sock
+        self.type = evt_type
+        self.src = src.strip("[]")
+        self.srcp = srcp
+        self.dst = dst.strip("[]")
+        self.dstp = dstp
+        self.srtt_us = srtt_us
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Analyze eBPF pingpong events: launch BPF, server, client, match entry/exit pairs."
+    p = argparse.ArgumentParser(description="Analyze eBPF pingpong event logs.")
+    p.add_argument("--input", required=True, help="Path to eBPF event log file")
+    p.add_argument("--output", default="results.csv", help="CSV output filename")
+    p.add_argument(
+        "--client-ip", default="100.80.0.1", help="Client IP address to filter events"
     )
-    parser.add_argument(
-        "--addr", required=True, help="Server IP address for client to connect to"
+    p.add_argument(
+        "--server-ip", default="100.80.0.0", help="Server IP address to filter events"
     )
-    parser.add_argument(
-        "--control-port",
-        type=int,
-        required=True,
-        help="Control port for negotiation between client and server",
-    )
-    parser.add_argument(
-        "--exp-port",
-        type=int,
-        required=True,
-        help="Experimental TCP port for ping-pong traffic",
-    )
-    parser.add_argument(
-        "--size",
-        type=int,
-        required=True,
-        help="Payload size in bytes for ping-pong messages",
-    )
-    parser.add_argument(
-        "--count",
-        type=int,
-        default=0,
-        help="Number of request/response to record (0 for unlimited)",
-    )
-    parser.add_argument("--output", required=True, help="CSV output filename")
-    parser.add_argument(
-        "--plot", action="store_true", help="Generate CDF plot after CSV"
-    )
-    parser.add_argument(
+    p.add_argument("--skip-first", type=int, default=0, help="Skip first N cycles")
+    p.add_argument("--skip-last", type=int, default=0, help="Skip last N cycles")
+    p.add_argument("--plot", action="store_true", help="Generate CDF plot after CSV")
+    p.add_argument(
         "--plot-output", default="latency_cdf.png", help="Output image for CDF plot"
     )
-    return parser.parse_args()
+    return p.parse_args()
+
+
+def parse_line(line: str) -> Optional[Event]:
+    m = EVENT_RE.search(line)
+    if not m:
+        return None
+    ts_us = int(m.group("ts")) / 1000.0
+    sock = int(m.group("sock"))
+    evt_type = m.group("type")
+    # capture kernel srtt (microseconds)
+    srtt_us = int(m.group("srtt"))
+    addr = m.group("addr")
+    m2 = ADDR_RE.search(addr)
+    if not m2:
+        return None
+    return Event(
+        ts_us=ts_us,
+        sock=sock,
+        evt_type=evt_type,
+        src=m2.group("src"),
+        srcp=int(m2.group("srcp")),
+        dst=m2.group("dst"),
+        dstp=int(m2.group("dstp")),
+        srtt_us=srtt_us,
+    )
+
+
+def load_events(filepath: str) -> List[Event]:
+    evts = []
+    with open(filepath, "r") as f:
+        for line in f:
+            e = parse_line(line)
+            if e:
+                evts.append(e)
+    return sorted(evts, key=lambda e: e.ts)
+
+
+def extract_cycles(events: List[Event], client_ip: str, server_ip: str) -> List[Dict]:
+    cycles = []
+    i = 0
+    n = len(events)
+    while i < n:
+        e = events[i]
+        # start on client send_entry
+        if e.type == "send_entry" and e.src == client_ip:
+            cycle = {}
+            cycle["send_entry"] = e.ts
+            cycle["srtt_us"] = e.srtt_us
+            sock = e.sock
+            # find send_exit
+            i += 1
+            while i < n:
+                if events[i].type == "send_exit" and events[i].sock == sock:
+                    cycle["send_exit"] = events[i].ts
+                    break
+                i += 1
+            # server recv_entry/exit
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_entry"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_recv_entry"] = events[i].ts
+                    break
+                i += 1
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_exit"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_recv_exit"] = events[i].ts
+                    break
+                i += 1
+            # server send_entry/exit
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "send_entry"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_send_entry"] = events[i].ts
+                    break
+                i += 1
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "send_exit"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_send_exit"] = events[i].ts
+                    break
+                i += 1
+            # client recv_entry/exit
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_entry"
+                    and events[i].sock == sock
+                    and events[i].dst == client_ip
+                ):
+                    cycle["client_recv_entry"] = events[i].ts
+                    break
+                i += 1
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_exit"
+                    and events[i].sock == sock
+                    and events[i].dst == client_ip
+                ):
+                    cycle["client_recv_exit"] = events[i].ts
+                    break
+                i += 1
+            cycles.append(cycle)
+        else:
+            i += 1
+    return cycles
+
+
+def compute_metrics(cycle: Dict) -> Dict:
+    return {
+        "client_stack_us": cycle["send_exit"] - cycle["send_entry"],
+        "server_stack_us": cycle["server_recv_exit"] - cycle["server_recv_entry"],
+        "network_latency_us": cycle["srtt_us"],
+    }
+
+
+def write_csv(output: str, metrics: List[Dict]):
+    fields = ["seq"] + list(metrics[0].keys())
+    with open(output, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        for i, m in enumerate(metrics):
+            row = {"seq": i, **m}
+            w.writerow(row)
+    print(f"Written {len(metrics)} records to {output}")
 
 
 def main():
     args = parse_args()
-    # ensure positive count
-    if args.count <= 0:
-        print(
-            "Please specify --count > 0 for number of ping-pong exchanges.",
-            file=sys.stderr,
+    evts = load_events(args.input)
+    cycles = extract_cycles(evts, args.client_ip, args.server_ip)
+
+    # smart drop of incomplete cycles at start/end if no manual skip
+    def is_complete(cycle: Dict) -> bool:
+        # cycle is complete if it has all kernel and stack timestamps
+        return all(
+            k in cycle
+            for k in (
+                "send_entry",
+                "send_exit",
+                "server_recv_entry",
+                "server_recv_exit",
+                "srtt_us",
+            )
         )
+
+    # determine start index
+    if args.skip_first > 0:
+        start_idx = args.skip_first
+    else:
+        # find first complete cycle
+        start_idx = next((i for i, c in enumerate(cycles) if is_complete(c)), 0)
+    # determine end index (exclusive)
+    if args.skip_last > 0:
+        end_idx = len(cycles) - args.skip_last
+    else:
+        # find last complete cycle
+        rev_idx = next((i for i, c in enumerate(reversed(cycles)) if is_complete(c)), 0)
+        end_idx = len(cycles) - rev_idx
+    cycles = cycles[start_idx:end_idx]
+    if not cycles:
+        print("No cycles extracted after skipping; check parameters.", file=sys.stderr)
         sys.exit(1)
-    # locate binaries
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    ebpf_bin = os.path.join(root, "build", "pingpong-ebpf")
-    server_bin = os.path.join(root, "build", "pingpong-server")
-    client_bin = os.path.join(root, "build", "pingpong-client")
-    # launch eBPF monitor with port-based filter
-    ebpf_proc = subprocess.Popen(
-        [ebpf_bin, "--dport", str(args.exp_port)],
-        stdout=subprocess.PIPE,
-        stderr=sys.stderr,
-        text=True,
-    )
-    time.sleep(0.1)
-    # launch pingpong server
-    server_proc = subprocess.Popen(
-        [server_bin, "--port", str(args.control_port)],
-        stdout=subprocess.DEVNULL,
-        stderr=sys.stderr,
-    )
-    time.sleep(0.1)
-    # launch pingpong client (CSV to /dev/null)
-    client_proc = subprocess.Popen(
-        [
-            client_bin,
-            "--addr",
-            args.addr,
-            "--control-port",
-            str(args.control_port),
-            "--exp-port",
-            str(args.exp_port),
-            "--size",
-            str(args.size),
-            "--count",
-            str(args.count),
-            "--output",
-            os.devnull,
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=sys.stderr,
-    )
-    send_q = []
-    recv_q = []
-    pending = []
-    records = []
-    seq = 0
-
-    try:
-        # read events from eBPF monitor
-        for line in ebpf_proc.stdout:
-            m = EVENT_PAT.search(line)
-            if not m:
-                continue
-            ts_ns = int(m.group(1))
-            evt = m.group(3)
-            # convert to microseconds
-            ts_us = ts_ns / 1000.0
-            if evt == "send_entry":
-                send_q.append(ts_us)
-            elif evt == "send_exit":
-                if send_q:
-                    t0 = send_q.pop(0)
-                    pending.append({"send_entry_us": t0, "send_exit_us": ts_us})
-            elif evt == "recv_entry":
-                recv_q.append(ts_us)
-            elif evt == "recv_exit":
-                if recv_q and pending:
-                    t1 = recv_q.pop(0)
-                    rec = pending.pop(0)
-                    rec.update({"recv_entry_us": t1, "recv_exit_us": ts_us})
-                    records.append(rec)
-                    seq += 1
-                    if args.count and seq >= args.count:
-                        break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # clean up subprocesses
-        client_proc.terminate()
-        server_proc.terminate()
-        ebpf_proc.terminate()
-
-    # write CSV
-    with open(args.output, "w", newline="") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "seq",
-                "send_entry_us",
-                "send_exit_us",
-                "recv_entry_us",
-                "recv_exit_us",
-            ],
-        )
-        writer.writeheader()
-        for i, rec in enumerate(records):
-            row = {"seq": i, **rec}
-            writer.writerow(row)
-    print(f"Written {len(records)} records to {args.output}")
-
-    # optional plot
+    metrics = [compute_metrics(c) for c in cycles]
+    write_csv(args.output, metrics)
     if args.plot:
-        import subprocess as sp
-
         plot_py = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "plot_cdf.py")
         )
-        cmd2 = [plot_py, "--input", args.output, "--output", args.plot_output]
+        cmd = [
+            sys.executable,
+            plot_py,
+            "--input",
+            args.output,
+            "--output",
+            args.plot_output,
+        ]
         print(f"Generating CDF plot to {args.plot_output}")
-        sp.run(cmd2, check=True)
+        subprocess.run(cmd, check=True)
 
 
 if __name__ == "__main__":
