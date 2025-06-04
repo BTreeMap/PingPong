@@ -120,94 +120,6 @@ def load_events(filepath: str) -> List[Event]:
     return sorted(evts, key=lambda e: e.ts)
 
 
-def extract_cycles(events: List[Event], client_ip: str, server_ip: str) -> List[Dict]:
-    cycles = []
-    i = 0
-    n = len(events)
-    while i < n:
-        e = events[i]
-        # start on client send_entry
-        if e.type == "send_entry" and e.src == client_ip:
-            cycle = {}
-            cycle["send_entry"] = e.ts
-            cycle["srtt_us"] = e.srtt_us
-            sock = e.sock
-            # find send_exit
-            i += 1
-            while i < n:
-                if events[i].type == "send_exit" and events[i].sock == sock:
-                    cycle["send_exit"] = events[i].ts
-                    break
-                i += 1
-            # server recv_entry/exit
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_entry"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_recv_entry"] = events[i].ts
-                    break
-                i += 1
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_exit"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_recv_exit"] = events[i].ts
-                    break
-                i += 1
-            # server send_entry/exit
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "send_entry"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_send_entry"] = events[i].ts
-                    break
-                i += 1
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "send_exit"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_send_exit"] = events[i].ts
-                    break
-                i += 1
-            # client recv_entry/exit
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_entry"
-                    and events[i].sock == sock
-                    and events[i].dst == client_ip
-                ):
-                    cycle["client_recv_entry"] = events[i].ts
-                    break
-                i += 1
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_exit"
-                    and events[i].sock == sock
-                    and events[i].dst == client_ip
-                ):
-                    cycle["client_recv_exit"] = events[i].ts
-                    break
-                i += 1
-            cycles.append(cycle)
-        else:
-            i += 1
-    return cycles
-
-
 def compute_metrics(cycle: Dict) -> Dict:
     return {
         "client_stack_us": cycle["send_exit"] - cycle["send_entry"],
@@ -234,14 +146,22 @@ def main():
     for f in args.inputs:
         evts.extend(load_events(f))
     evts.sort(key=lambda e: e.ts)
-    cycles = extract_cycles(evts, args.client_ip, args.server_ip)
+    evts = list(
+        filter(
+            lambda e: (e.src == args.client_ip and e.dst == args.server_ip)
+            or (e.src == args.server_ip and e.dst == args.client_ip),
+            evts,
+        )
+    )
 
+    cycles = evts[:]
     # intelligent trimming: retain only longest contiguous run of complete cycles if requested
     if args.smart_skip:
 
-        def is_complete(c: Dict) -> bool:
+        def is_complete(index: int) -> bool:
+            slice_ = evts[index : index + 4]
             return all(
-                key in c
+                key in slice_
                 for key in (
                     "send_entry",
                     "send_exit",
@@ -250,7 +170,7 @@ def main():
                 )
             )
 
-        complete_flags = [is_complete(c) for c in cycles]
+        complete_flags = [is_complete(i) for i in range(len(evts) - 3)]
         max_len = 0
         best_start = 0
         curr_start = None
@@ -270,13 +190,14 @@ def main():
                 max_len = length
                 best_start = curr_start
         if max_len > 0:
-            cycles = cycles[best_start : best_start + max_len]
+            cycles = evts[best_start : best_start + max_len]
         else:
             print("No complete cycle runs found; check inputs.", file=sys.stderr)
             sys.exit(1)
     if not cycles:
         print("No cycles extracted after skipping; check parameters.", file=sys.stderr)
         sys.exit(1)
+    print(f"Extracted {len(cycles)} complete ping-pong cycles")
     metrics = [compute_metrics(c) for c in cycles]
     write_csv(args.output, metrics)
     if args.plot:
