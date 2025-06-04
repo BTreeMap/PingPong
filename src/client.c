@@ -147,6 +147,10 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    fprintf(stderr, "Waiting for experiment server to set up listener on port %d...\n", exp_port);
+    sleep(2); // Give server time to set up listener
+    fprintf(stderr, "Connecting to experiment server at %s:%d...\n", ctrl_addr, exp_port);
+
     serv.sin_port = htons(exp_port);
     if (connect(sockfd, (struct sockaddr *)&serv, sizeof(serv)) < 0)
     {
