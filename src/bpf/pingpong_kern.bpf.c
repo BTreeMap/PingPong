@@ -74,7 +74,7 @@ static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *s
 }
 
 SEC("fentry/tcp_sendmsg")
-int BPF_KPROBE(handle_tcp_sendmsg, struct sock *sk)
+int BPF_PROG(handle_tcp_sendmsg, struct sock *sk)
 {
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_SEND);
     return 0;
@@ -82,14 +82,14 @@ int BPF_KPROBE(handle_tcp_sendmsg, struct sock *sk)
 
 // Capture send exit
 SEC("fexit/tcp_sendmsg")
-int BPF_KRETPROBE(handle_tcp_sendmsg_ret, struct sock *sk)
+int BPF_PROG(handle_tcp_sendmsg_ret, struct sock *sk)
 {
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_SEND_EXIT);
     return 0;
 }
 
 SEC("fentry/tcp_rcv_established")
-int BPF_KPROBE(handle_tcp_rcv, struct sock *sk)
+int BPF_PROG(handle_tcp_rcv, struct sock *sk)
 {
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_RECV);
     return 0;
@@ -97,7 +97,7 @@ int BPF_KPROBE(handle_tcp_rcv, struct sock *sk)
 
 // Capture receive exit (deliver to user space)
 SEC("fexit/tcp_recvmsg")
-int BPF_KRETPROBE(handle_tcp_recvmsg_ret, struct sock *sk)
+int BPF_PROG(handle_tcp_recvmsg_ret, struct sock *sk)
 {
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_RECV_EXIT);
     return 0;
