@@ -19,15 +19,6 @@ struct
     __uint(max_entries, 16 * 1024 * 1024); // 16 MiB
 } events SEC(".maps");
 
-// Map to stash the 'sk' pointer at entry, keyed by thread ID
-struct
-{
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 65536); // 64K entries
-    __type(key, u64);           // pid_tgid (high 32 bits=TGID, low 32=PID)
-    __type(value, u64);         // (u64) sk pointer
-} sk_cache SEC(".maps");
-
 static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *sk, __u8 evt_type)
 {
     struct event *e;
@@ -47,6 +38,12 @@ static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *s
 
     // NEW: emit sock_id (pointer value) for user-space pairing
     e->sock_id = (u64)sk;
+
+    struct tcp_sock *ts_ptr = bpf_skc_to_tcp_sock(sk);
+    if (ts_ptr)
+    {
+        e->srtt_us = BPF_CORE_READ(ts_ptr, srtt_us) >> 3;
+    }
 
     // ports in host order
     e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
@@ -76,7 +73,7 @@ static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *s
     bpf_ringbuf_submit(e, 0);
 }
 
-SEC("kprobe/tcp_sendmsg")
+SEC("fentry/tcp_sendmsg")
 int BPF_KPROBE(handle_tcp_sendmsg, struct sock *sk)
 {
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_SEND);
@@ -84,15 +81,14 @@ int BPF_KPROBE(handle_tcp_sendmsg, struct sock *sk)
 }
 
 // Capture send exit
-SEC("kretprobe/tcp_sendmsg")
-int BPF_KRETPROBE(handle_tcp_sendmsg_ret)
+SEC("fexit/tcp_sendmsg")
+int BPF_KRETPROBE(handle_tcp_sendmsg_ret, struct sock *sk)
 {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_SEND_EXIT);
     return 0;
 }
 
-SEC("kprobe/tcp_rcv_established")
+SEC("fentry/tcp_rcv_established")
 int BPF_KPROBE(handle_tcp_rcv, struct sock *sk)
 {
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_RECV);
@@ -100,10 +96,9 @@ int BPF_KPROBE(handle_tcp_rcv, struct sock *sk)
 }
 
 // Capture receive exit (deliver to user space)
-SEC("kretprobe/tcp_recvmsg")
-int BPF_KRETPROBE(handle_tcp_recvmsg_ret)
+SEC("fexit/tcp_recvmsg")
+int BPF_KRETPROBE(handle_tcp_recvmsg_ret, struct sock *sk)
 {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     trace_sock_event((struct pt_regs *)ctx, sk, EVENT_TYPE_TCP_RECV_EXIT);
     return 0;
 }

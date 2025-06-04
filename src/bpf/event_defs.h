@@ -28,6 +28,7 @@ struct event
         __u32 v6[ADDR_V6_WORDS];
     } daddr;
     __u64 sock_id; // NEW: cast of (u64) sk pointer
+    __u32 srtt_us; // smoothed round trip time in microseconds
 };
 
 #endif /* __EVENT_DEFS_H */
