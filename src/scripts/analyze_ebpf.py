@@ -42,7 +42,9 @@ class Event:
 
 def parse_args():
     p = argparse.ArgumentParser(description="Analyze eBPF pingpong event logs.")
-    p.add_argument("--input", required=True, help="Path to eBPF event log file")
+    p.add_argument(
+        "--inputs", nargs="+", required=True, help="One or more eBPF event log files"
+    )
     p.add_argument("--output", default="results.csv", help="CSV output filename")
     p.add_argument(
         "--client-ip", default="100.80.0.1", help="Client IP address to filter events"
@@ -50,11 +52,17 @@ def parse_args():
     p.add_argument(
         "--server-ip", default="100.80.0.0", help="Server IP address to filter events"
     )
-    p.add_argument("--skip-first", type=int, default=0, help="Skip first N cycles")
-    p.add_argument("--skip-last", type=int, default=0, help="Skip last N cycles")
+    p.add_argument(
+        "--smart-skip",
+        action="store_true",
+        default=False,
+        help="Enable intelligent trimming of incomplete cycle runs",
+    )
     p.add_argument("--plot", action="store_true", help="Generate CDF plot after CSV")
     p.add_argument(
-        "--plot-output", default="latency_cdf.png", help="Output image for CDF plot"
+        "--plot-output",
+        default="plots/latency_cdf.png",
+        help="Output image for CDF plot",
     )
     return p.parse_args()
 
@@ -203,43 +211,59 @@ def write_csv(output: str, metrics: List[Dict]):
 
 def main():
     args = parse_args()
-    evts = load_events(args.input)
+    # load and merge events from all input files
+    evts = []
+    for f in args.inputs:
+        evts.extend(load_events(f))
+    evts.sort(key=lambda e: e.ts)
     cycles = extract_cycles(evts, args.client_ip, args.server_ip)
 
-    # smart drop of incomplete cycles at start/end if no manual skip
-    def is_complete(cycle: Dict) -> bool:
-        # cycle is complete if it has all kernel and stack timestamps
-        return all(
-            k in cycle
-            for k in (
-                "send_entry",
-                "send_exit",
-                "server_recv_entry",
-                "server_recv_exit",
-                "srtt_us",
-            )
-        )
+    # intelligent trimming: retain only longest contiguous run of complete cycles if requested
+    if args.smart_skip:
 
-    # determine start index
-    if args.skip_first > 0:
-        start_idx = args.skip_first
-    else:
-        # find first complete cycle
-        start_idx = next((i for i, c in enumerate(cycles) if is_complete(c)), 0)
-    # determine end index (exclusive)
-    if args.skip_last > 0:
-        end_idx = len(cycles) - args.skip_last
-    else:
-        # find last complete cycle
-        rev_idx = next((i for i, c in enumerate(reversed(cycles)) if is_complete(c)), 0)
-        end_idx = len(cycles) - rev_idx
-    cycles = cycles[start_idx:end_idx]
+        def is_complete(c: Dict) -> bool:
+            return all(
+                key in c
+                for key in (
+                    "send_entry",
+                    "send_exit",
+                    "server_recv_entry",
+                    "server_recv_exit",
+                )
+            )
+
+        complete_flags = [is_complete(c) for c in cycles]
+        max_len = 0
+        best_start = 0
+        curr_start = None
+        for idx, flag in enumerate(complete_flags):
+            if flag and curr_start is None:
+                curr_start = idx
+            if not flag and curr_start is not None:
+                length = idx - curr_start
+                if length > max_len:
+                    max_len = length
+                    best_start = curr_start
+                curr_start = None
+        # tail
+        if curr_start is not None:
+            length = len(complete_flags) - curr_start
+            if length > max_len:
+                max_len = length
+                best_start = curr_start
+        if max_len > 0:
+            cycles = cycles[best_start : best_start + max_len]
+        else:
+            print("No complete cycle runs found; check inputs.", file=sys.stderr)
+            sys.exit(1)
     if not cycles:
         print("No cycles extracted after skipping; check parameters.", file=sys.stderr)
         sys.exit(1)
     metrics = [compute_metrics(c) for c in cycles]
     write_csv(args.output, metrics)
     if args.plot:
+        # ensure output directory exists
+        os.makedirs(os.path.dirname(args.plot_output), exist_ok=True)
         plot_py = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "plot_cdf.py")
         )
