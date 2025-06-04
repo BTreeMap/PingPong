@@ -58,10 +58,11 @@ COPY --from=builder / /
 ENV PATH="/opt/pingpong:${PATH}" \
     ROLE="server" \
     CONTROL_PORT="4242" \
-    ADDR="" \
+    EXP_PORT="24242" \
+    SERVER_ADDR="" \
     SIZE="1024" \
     COUNT="100" \
-    OUTPUT="/var/lib/pingpong/client.log"
+    CLIENT_OUTPUT="/var/lib/pingpong/client.csv"
 
 # Set the user and working directory.
 USER root

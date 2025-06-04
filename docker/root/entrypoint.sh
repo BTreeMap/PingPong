@@ -75,5 +75,5 @@ else
             exit 1
         fi
     fi
-    pingpong-client --control-port $CONTROL_PORT --exp-port $EXP_PORT --addr $ADDR --size $SIZE --count $COUNT --output $OUTPUT
+    pingpong-client --control-port $CONTROL_PORT --exp-port $EXP_PORT --addr $SERVER_ADDR --size $SIZE --count $COUNT --output $CLIENT_OUTPUT
 fi
