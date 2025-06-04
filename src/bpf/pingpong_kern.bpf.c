@@ -16,14 +16,14 @@
 struct
 {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 16 * 1024 * 1024); // 16 MiB
+    __uint(max_entries, 64 * 1024 * 1024); // 64 MiB
 } events SEC(".maps");
 
 static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *sk, __u8 evt_type)
 {
     struct event *e;
     __u64 ts = bpf_ktime_get_ns();
-    __u32 pid = bpf_get_current_pid_tgid() >> 32;
+    __u32 pid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
 
     // Reserve space in the ring buffer
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
