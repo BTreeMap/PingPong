@@ -16,9 +16,14 @@ ROLE="${ROLE:-server}"  # Default role is 'server' if not set
 CONTROL_PORT="${CONTROL_PORT:-4242}"  # Default control port is 4242 if not set
 EXP_PORT="${EXP_PORT:-24242}"  # Default experiment port is 4243 if not set
 
-if [ "$ROLE" != "server" ] && [ "$ROLE" != "client" ]; then
+if [ "$ROLE" != "server" ] && [ "$ROLE" != "client" ] && [ "$ROLE" != "idle" ]; then
     echo "ERROR: Invalid ROLE specified. Must be 'server' or 'client'."
     exit 1
+fi
+
+if [ "$ROLE" == "idle" ]; then
+    echo "INFO: Running in idle mode. No PingPong server or client will be started."
+    tail -f /dev/null -s 86400 || true
 fi
 
 # (Optional) Additional arguments to pass to the tailscaled command.
@@ -77,3 +82,6 @@ else
     fi
     pingpong-client --control-port $CONTROL_PORT --exp-port $EXP_PORT --addr $SERVER_ADDR --size $SIZE --count $COUNT --output $CLIENT_OUTPUT
 fi
+
+echo "Test completed. Please check the logs for details."
+tail -f /dev/null -s 86400 || true
