@@ -130,7 +130,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
                     e->event_type == EVENT_TYPE_TCP_RECV_EXIT);
     if (is_exit)
     {
-        printf("ts:%llu pid:%u type:%s\n", e->timestamp_ns, e->pid, type_str);
+        printf("ts:%llu pid:%u type:%s id:%llu\n", e->timestamp_ns, e->pid, type_str, e->sock_id);
         return 0;
     }
 
