@@ -125,16 +125,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
         type_str = "unknown";
     }
 
-    // For exit events, address info may not be captured; print minimal info
-    bool is_exit = (e->event_type == EVENT_TYPE_TCP_SEND_EXIT ||
-                    e->event_type == EVENT_TYPE_TCP_RECV_EXIT);
-    if (is_exit)
-    {
-        printf("ts:%llu sock:%llu pid:%u type:%s srtt_us:%u\n", e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us);
-        fflush(stdout);
-        return 0;
-    }
-
     char src[INET6_ADDRSTRLEN] = {0}, dst[INET6_ADDRSTRLEN] = {0};
     if (e->af == AF_INET)
     {
