@@ -19,10 +19,14 @@ static struct ring_buffer *rb = NULL;
 
 static __u16 target_sport = 0; // Global variable for target sport
 static __u16 target_dport = 0; // Global variable for target dport
+static __u32 force_filter = 0; // Flag to force filtering by ports
 
 static struct argp_option options[] = {
     {"sport", 's', "SPORT", 0, "Target source port to filter"},
     {"dport", 'd', "DPORT", 0, "Target destination port to filter"},
+    // Note that some events may not necessarily have the port numbers set.
+    // If the force filter is set, we skip events with unset port numbers.
+    {"force-filter", 'f', 0, 0, "Force filtering by source and destination ports"},
     {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
@@ -55,6 +59,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
             target_dport = (__u16)port;
         }
         break;
+    case 'f':
+        force_filter = 1; // Enable force filtering
+        break;
     case ARGP_KEY_ARG:
         argp_usage(state);
         break;
@@ -72,10 +79,32 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 {
     const struct event *e = data;
 
-    if (target_sport != 0 && e->sport != target_sport)
-        return 0;
-    if (target_dport != 0 && e->dport != target_dport)
-        return 0;
+    if (target_sport != 0)
+    {
+        if (e->sport == 0 && force_filter)
+        {
+            // If sport is 0 and force_filter is set, skip this event
+            return 0;
+        }
+        if (e->sport != 0 && e->sport != target_sport)
+        {
+            // If sport is set and does not match target_sport, skip this event
+            return 0;
+        }
+    }
+    if (target_dport != 0)
+    {
+        if (e->dport == 0 && force_filter)
+        {
+            // If dport is 0 and force_filter is set, skip this event
+            return 0;
+        }
+        if (e->dport != 0 && e->dport != target_dport)
+        {
+            // If dport is set and does not match target_dport, skip this event
+            return 0;
+        }
+    }
 
     const char *type_str;
     switch (e->event_type)
