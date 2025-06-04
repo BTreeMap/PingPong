@@ -169,7 +169,7 @@ def compute_metrics(cycle: Dict) -> Dict:
     return {
         "send_stack_us": cycle["send_exit"] - cycle["send_entry"],
         "recv_stack_us": cycle["recv_exit"] - cycle["recv_entry"],
-        "network_latency_ms": cycle["srtt_us"] / 1000.0,
+        "network_latency_us": cycle["srtt_us"],
     }
 
 
