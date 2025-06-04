@@ -67,10 +67,10 @@ else
     # Start the PingPong eBPF component in the background
     pingpong-ebpf --dport $EXP_PORT > /var/lib/pingpong/ebpf.log 2> /var/lib/pingpong/ebpf.stderr &
     # Start the PingPong client in the foreground
-    if [ -z "$ADDR" ]; then
-        echo "ADDR environment variable is not set. Please enter the server address:"
-        read -p "Server address: " ADDR
-        if [ -z "$ADDR" ]; then
+    if [ -z "$SERVER_ADDR" ]; then
+        echo "SERVER_ADDR environment variable is not set. Please enter the server address:"
+        read -p "Server address: " SERVER_ADDR
+        if [ -z "$SERVER_ADDR" ]; then
             echo "ERROR: Server address cannot be empty."
             exit 1
         fi
