@@ -170,26 +170,26 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     {
         if (is_send)
         {
-            printf("ts:%llu pid:%u type:%s %s:%u -> %s:%u\n",
-                   e->timestamp_ns, e->pid, type_str, src, e->sport, dst, e->dport);
+            printf("ts:%llu pid:%u type:%s id:%llu %s:%u -> %s:%u\n",
+                   e->timestamp_ns, e->pid, type_str, e->sock_id, src, e->sport, dst, e->dport);
         }
         else
         {
-            printf("ts:%llu pid:%u type:%s %s:%u -> %s:%u\n",
-                   e->timestamp_ns, e->pid, type_str, dst, e->dport, src, e->sport);
+            printf("ts:%llu pid:%u type:%s id:%llu %s:%u -> %s:%u\n",
+                   e->timestamp_ns, e->pid, type_str, e->sock_id, dst, e->dport, src, e->sport);
         }
     }
     else
     {
         if (is_send)
         {
-            printf("ts:%llu pid:%u type:%s [%s]:%u -> [%s]:%u\n",
-                   e->timestamp_ns, e->pid, type_str, src, e->sport, dst, e->dport);
+            printf("ts:%llu pid:%u type:%s id:%llu [%s]:%u -> [%s]:%u\n",
+                   e->timestamp_ns, e->pid, type_str, e->sock_id, src, e->sport, dst, e->dport);
         }
         else
         {
-            printf("ts:%llu pid:%u type:%s [%s]:%u -> [%s]:%u\n",
-                   e->timestamp_ns, e->pid, type_str, dst, e->dport, src, e->sport);
+            printf("ts:%llu pid:%u type:%s id:%llu [%s]:%u -> [%s]:%u\n",
+                   e->timestamp_ns, e->pid, type_str, e->sock_id, dst, e->dport, src, e->sport);
         }
     }
     return 0;

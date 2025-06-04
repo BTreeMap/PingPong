@@ -25,14 +25,20 @@ static __always_inline void trace_sock_event(struct pt_regs *ctx, struct sock *s
     __u64 ts = bpf_ktime_get_ns();
     __u32 pid = bpf_get_current_pid_tgid() >> 32;
 
+    // Reserve space in the ring buffer
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
         return;
 
+    // Populate only the minimal fields:
     e->timestamp_ns = ts;
     e->pid = pid;
     e->event_type = evt_type;
     e->af = BPF_CORE_READ(sk, __sk_common.skc_family);
+
+    // NEW: emit sock_id (pointer value) for user-space pairing
+    e->sock_id = (u64)sk;
+
     // ports in host order
     e->sport = BPF_CORE_READ(sk, __sk_common.skc_num);
     e->dport = bpf_ntohs(BPF_CORE_READ(sk, __sk_common.skc_dport));
