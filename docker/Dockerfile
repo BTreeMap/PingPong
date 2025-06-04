@@ -42,6 +42,12 @@ RUN apt-get update && \
 # Copy the compiled binaries into /opt.
 COPY --chown=root:root pingpong /opt/pingpong/
 
+# Copy the entrypoint script into the root directory.
+COPY --chown=root:root root/ /
+
+# Set the entrypoint script to be executable.
+RUN chmod +x /entrypoint.sh
+
 # Final stage: Create a minimal image with only the application and its runtime dependencies
 FROM scratch
 
@@ -62,4 +68,4 @@ USER root
 WORKDIR /opt/pingpong
 
 # Launch the server by default.
-ENTRYPOINT ["pingpong-ebpf"]
+ENTRYPOINT ["/entrypoint.sh"]
