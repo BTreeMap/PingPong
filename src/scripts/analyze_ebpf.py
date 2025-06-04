@@ -9,6 +9,7 @@ import sys
 import os
 import subprocess
 from typing import List, Dict, Optional
+from functools import partial
 
 EVENT_RE = re.compile(
     r"ts:(?P<ts>\d+)\s+sock:(?P<sock>\d+)\s+pid:(?P<pid>\d+)\s+type:(?P<type>\w+)\s+srtt:(?P<srtt>\d+)\s+(?P<addr>.+)"
@@ -71,7 +72,7 @@ def parse_args():
     p.add_argument(
         "--smart-skip",
         action="store_true",
-        default=False,
+        default=True,
         help="Enable intelligent trimming of incomplete cycle runs",
     )
     p.add_argument(
@@ -120,6 +121,98 @@ def load_events(filepath: str) -> List[Event]:
     return sorted(evts, key=lambda e: e.ts)
 
 
+def extract_cycles(
+    events: List[Event], client_ip: str, server_ip: str, subcall: bool = False
+) -> List[Dict]:
+    cycles = []
+    i = 0
+    n = len(events)
+    while i < n:
+        e = events[i]
+        # start on client send_entry
+        if e.type == "send_entry" and e.src == client_ip:
+            cycle = {}
+            cycle["send_entry"] = e.ts
+            cycle["srtt_us"] = e.srtt_us
+            sock = e.sock
+            # find send_exit
+            i += 1
+            while i < n:
+                if events[i].type == "send_exit" and events[i].sock == sock:
+                    cycle["send_exit"] = events[i].ts
+                    break
+                i += 1
+            # server recv_entry/exit
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_entry"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_recv_entry"] = events[i].ts
+                    break
+                i += 1
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_exit"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_recv_exit"] = events[i].ts
+                    break
+                i += 1
+            # server send_entry/exit
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "send_entry"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_send_entry"] = events[i].ts
+                    break
+                i += 1
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "send_exit"
+                    and events[i].sock == sock
+                    and events[i].src == server_ip
+                ):
+                    cycle["server_send_exit"] = events[i].ts
+                    break
+                i += 1
+            # client recv_entry/exit
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_entry"
+                    and events[i].sock == sock
+                    and events[i].dst == client_ip
+                ):
+                    cycle["client_recv_entry"] = events[i].ts
+                    break
+                i += 1
+            i += 1
+            while i < n:
+                if (
+                    events[i].type == "recv_exit"
+                    and events[i].sock == sock
+                    and events[i].dst == client_ip
+                ):
+                    cycle["client_recv_exit"] = events[i].ts
+                    break
+                i += 1
+            cycles.append(cycle)
+        else:
+            i += 1
+    if subcall:
+        return cycles
+    return cycles or extract_cycles(events, server_ip, client_ip, subcall=True)
+
+
 def compute_metrics(cycle: Dict) -> Dict:
     return {
         "client_stack_us": cycle["send_exit"] - cycle["send_entry"],
@@ -139,27 +232,31 @@ def write_csv(output: str, metrics: List[Dict]):
     print(f"Written {len(metrics)} records to {output}")
 
 
-def main():
-    args = parse_args()
-    # load and merge events from all input files
-    evts = []
-    for f in args.inputs:
-        evts.extend(load_events(f))
-    evts.sort(key=lambda e: e.ts)
-    evts = list(
+def process_input(
+    input_path: str, client_ip: str, server_ip: str, smart_skip: bool = True
+) -> List[Event]:
+    """
+    Process a single input file and return a list of parsed events.
+    """
+    events = load_events(input_path)
+
+    # filter events by client/server IPs
+    events = list(
         filter(
-            lambda e: (e.src == args.client_ip and e.dst == args.server_ip)
-            or (e.src == args.server_ip and e.dst == args.client_ip),
-            evts,
+            lambda e: (e.src == client_ip and e.dst == server_ip)
+            or (e.src == server_ip and e.dst == client_ip),
+            events,
         )
     )
 
-    cycles = evts[:]
+    # sort by timestamp
+    events.sort(key=lambda e: e.ts)
+
     # intelligent trimming: retain only longest contiguous run of complete cycles if requested
-    if args.smart_skip:
+    if smart_skip:
 
         def is_complete(index: int) -> bool:
-            slice_ = evts[index : index + 4]
+            slice_ = events[index : index + 4]
             return all(
                 key in slice_
                 for key in (
@@ -170,7 +267,7 @@ def main():
                 )
             )
 
-        complete_flags = [is_complete(i) for i in range(len(evts) - 3)]
+        complete_flags = [is_complete(i) for i in range(len(events) - 3)]
         max_len = 0
         best_start = 0
         curr_start = None
@@ -189,16 +286,35 @@ def main():
             if length > max_len:
                 max_len = length
                 best_start = curr_start
-        if max_len > 0:
-            cycles = evts[best_start : best_start + max_len]
-        else:
-            print("No complete cycle runs found; check inputs.", file=sys.stderr)
-            sys.exit(1)
-    if not cycles:
-        print("No cycles extracted after skipping; check parameters.", file=sys.stderr)
+        max_len -= max_len % 4  # ensure we have complete cycles
+        events = events[best_start : best_start + max_len]
+
+    if not events:
+        print(f"No events found in {input_path} after filtering.", file=sys.stderr)
+    else:
+        print(f"Loaded {len(events)} events from {input_path}")
+    return events
+
+
+def main():
+    args = parse_args()
+    # load and merge events from all input files
+    evts = []
+    for f in args.inputs:
+        evts.append(process_input(f, args.client_ip, args.server_ip, args.smart_skip))
+
+    if not evts:
+        print("No events extracted after skipping; check parameters.", file=sys.stderr)
         sys.exit(1)
-    print(f"Extracted {len(cycles)} complete ping-pong cycles")
-    metrics = [compute_metrics(c) for c in cycles]
+
+    cycs = list(
+        map(
+            partial(extract_cycles, client_ip=args.client_ip, server_ip=args.server_ip),
+            evts,
+        )
+    )
+
+    metrics = [compute_metrics(c) for c in cycs]
     write_csv(args.output, metrics)
     if args.plot:
         # ensure output directory exists
