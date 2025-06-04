@@ -131,6 +131,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
     if (is_exit)
     {
         printf("ts:%llu sock:%llu pid:%u type:%s srtt_us:%u\n", e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us);
+        fflush(stdout);
         return 0;
     }
 
@@ -192,6 +193,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
                    e->timestamp_ns, e->sock_id, e->pid, type_str, e->srtt_us, dst, e->dport, src, e->sport);
         }
     }
+    fflush(stdout);
     return 0;
 }
 
@@ -220,18 +222,10 @@ static void cleanup(void)
     }
 }
 
-// Flush stdout and log to stderr to ensure complete logs before exiting
-static void flush_and_log(void)
-{
-    fflush(stdout);
-    fprintf(stderr, "[INFO] Flushed stdout logs before exit\n");
-}
-
 static void fatal_handler(int sig)
 {
-    // Handle fatal signals by flushing logs and cleaning up
+    // Handle fatal signals by cleaning up
     fprintf(stderr, "Fatal signal %d received, unloading BPF programs\n", sig);
-    flush_and_log();
     cleanup();
     _exit(1);
 }
@@ -241,7 +235,6 @@ static volatile bool exiting = false;
 static void sig_handler(int sig)
 {
     // Handle interrupt/termination signals by flushing logs
-    flush_and_log();
     exiting = true;
 }
 
