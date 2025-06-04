@@ -59,11 +59,6 @@ def parse_args():
         help="One or more eBPF event log files",
     )
     p.add_argument(
-        "--output",
-        default=os.path.join(demo_dir, "results.csv"),
-        help="CSV output filename",
-    )
-    p.add_argument(
         "--client-ip", default="100.80.0.1", help="Client IP address to filter events"
     )
     p.add_argument(
@@ -130,84 +125,46 @@ def extract_cycles(
     while i < n:
         e = events[i]
         # start on client send_entry
-        if e.type == "send_entry" and e.src == client_ip:
+        if e.type == "send_entry" and e.src == client_ip and e.dst == server_ip:
             cycle = {}
             cycle["send_entry"] = e.ts
             cycle["srtt_us"] = e.srtt_us
             sock = e.sock
             # find send_exit
             i += 1
-            while i < n:
-                if events[i].type == "send_exit" and events[i].sock == sock:
-                    cycle["send_exit"] = events[i].ts
-                    break
-                i += 1
-            # server recv_entry/exit
+            if i >= n:
+                break
+            assert (
+                events[i].type == "send_exit"
+                and events[i].sock == sock
+                and events[i].src == client_ip
+                and events[i].dst == server_ip
+            )
+            cycle["send_exit"] = events[i].ts
+            # find recv_entry
             i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_entry"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_recv_entry"] = events[i].ts
-                    break
-                i += 1
+            if i >= n:
+                break
+            assert (
+                events[i].type == "recv_entry"
+                and events[i].sock == sock
+                and events[i].src == server_ip
+                and events[i].dst == client_ip
+            )
+            cycle["recv_entry"] = events[i].ts
+            # find recv_exit
             i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_exit"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_recv_exit"] = events[i].ts
-                    break
-                i += 1
-            # server send_entry/exit
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "send_entry"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_send_entry"] = events[i].ts
-                    break
-                i += 1
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "send_exit"
-                    and events[i].sock == sock
-                    and events[i].src == server_ip
-                ):
-                    cycle["server_send_exit"] = events[i].ts
-                    break
-                i += 1
-            # client recv_entry/exit
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_entry"
-                    and events[i].sock == sock
-                    and events[i].dst == client_ip
-                ):
-                    cycle["client_recv_entry"] = events[i].ts
-                    break
-                i += 1
-            i += 1
-            while i < n:
-                if (
-                    events[i].type == "recv_exit"
-                    and events[i].sock == sock
-                    and events[i].dst == client_ip
-                ):
-                    cycle["client_recv_exit"] = events[i].ts
-                    break
-                i += 1
+            if i >= n:
+                break
+            assert (
+                events[i].type == "recv_exit"
+                and events[i].sock == sock
+                and events[i].src == server_ip
+                and events[i].dst == client_ip
+            )
+            cycle["recv_exit"] = events[i].ts
             cycles.append(cycle)
-        else:
-            i += 1
+        i += 1
     if subcall:
         return cycles
     return cycles or extract_cycles(events, server_ip, client_ip, subcall=True)
@@ -215,8 +172,8 @@ def extract_cycles(
 
 def compute_metrics(cycle: Dict) -> Dict:
     return {
-        "client_stack_us": cycle["send_exit"] - cycle["send_entry"],
-        "server_stack_us": cycle["server_recv_exit"] - cycle["server_recv_entry"],
+        "send_stack_us": cycle["send_exit"] - cycle["send_entry"],
+        "recv_stack_us": cycle["recv_exit"] - cycle["recv_entry"],
         "network_latency_us": cycle["srtt_us"],
     }
 
@@ -256,18 +213,20 @@ def process_input(
     if smart_skip:
 
         def is_complete(index: int) -> bool:
-            slice_ = events[index : index + 4]
+            slice_ = list(map(lambda evt: evt.type, events[index : index + 4]))
             return all(
                 key in slice_
                 for key in (
                     "send_entry",
                     "send_exit",
-                    "server_recv_entry",
-                    "server_recv_exit",
+                    "recv_entry",
+                    "recv_exit",
                 )
             )
 
+        # print(events)
         complete_flags = [is_complete(i) for i in range(len(events) - 3)]
+        # print(complete_flags)
         max_len = 0
         best_start = 0
         curr_start = None
@@ -314,8 +273,9 @@ def main():
         )
     )
 
-    metrics = [compute_metrics(c) for c in cycs]
-    write_csv(args.output, metrics)
+    metrics = [[compute_metrics(c) for c in cycle] for cycle in cycs]
+    for f, m in zip(args.inputs, metrics):
+        write_csv(os.path.splitext(f)[0] + ".csv", m)
     if args.plot:
         # ensure output directory exists
         os.makedirs(os.path.dirname(args.plot_output), exist_ok=True)
