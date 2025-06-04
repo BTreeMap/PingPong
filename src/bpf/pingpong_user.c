@@ -191,9 +191,18 @@ static void cleanup(void)
     }
 }
 
+// Flush stdout and log to stderr to ensure complete logs before exiting
+static void flush_and_log(void)
+{
+    fflush(stdout);
+    fprintf(stderr, "[INFO] Flushed stdout logs before exit\n");
+}
+
 static void fatal_handler(int sig)
 {
+    // Handle fatal signals by flushing logs and cleaning up
     fprintf(stderr, "Fatal signal %d received, unloading BPF programs\n", sig);
+    flush_and_log();
     cleanup();
     _exit(1);
 }
@@ -202,6 +211,8 @@ static volatile bool exiting = false;
 
 static void sig_handler(int sig)
 {
+    // Handle interrupt/termination signals by flushing logs
+    flush_and_log();
     exiting = true;
 }
 
